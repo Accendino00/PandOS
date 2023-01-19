@@ -27,4 +27,6 @@ struct pcb_t* resetPcb(struct pcb_t* p) {
 
     p->p_time = 0;
     p->p_semAdd = NULL;
+
+    return p;
 }
