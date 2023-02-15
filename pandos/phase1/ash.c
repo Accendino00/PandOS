@@ -3,35 +3,24 @@
 #include "hashtable.h"
 
 /** Declaration of the lists */
-static struct semd_t* semdFree_h;
+static struct list_head semdFree_h;
 static struct semd_t semdFree_table[MAXPROC];
 static DEFINE_HASHTABLE(semd_h, 12);
 
 int insertBlocked(int *semAdd, pcb_t* p){
-    
-   //cerca il semaforo nell'ASH
-   // se c'è inserisci il pcb
-   //altrimenti alloca il semaforo nell'ASH
-   // se non ci sono semafori liberi ritorna TRUE
-   //ritorna FALSE
+    semd_t *sem;
 
-//     if (list_empty(&semdFree_h)) {
-//         return TRUE;
-//     } else {
-//         semd_t* s = findSEMD(semd_h, semAdd);
-
-//         if (s != NULL) {
-//             p->p_semAdd = semAdd;
-//             list_add_tail(&p->p_list, &s->s_procq);
-//         } else {
-//             hash_add(semd_h, , semAdd);
-//         }
-
+    if (list_empty(&semdFree_h) || p == NULL || semAdd == NULL || p->p_semAdd != NULL)
+    {
+        return TRUE;
+    }
+    else
+    {
         
-//     }
 
-//    return FALSE;
 
+        return FALSE;
+    }
 };
 
 pcb_t* removeBlocked(int *semAdd){

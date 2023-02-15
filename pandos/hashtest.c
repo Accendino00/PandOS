@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <hashtable.h>
-#include <list.h>
+#include "hashtable.h"
+#include "list.h"
 
 DEFINE_HASHTABLE(hdata, 16);
 
