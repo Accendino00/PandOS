@@ -36,7 +36,7 @@ pcb_t *allocPcb();
 void mkEmptyProcQ(struct list_head *head);
 
 /**
- * @brief Checks wheter or not a process list is empty.
+ * @brief Checks whether or not a process list is empty.
  * 
  * @param head The list to be checked.
  * @return TRUE if the list is empty, FALSE otherwise.
