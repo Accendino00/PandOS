@@ -4,6 +4,16 @@ XT_PRG_PREFIX = mipsel-linux-gnu-
 CC = $(XT_PRG_PREFIX)gcc
 LD = $(XT_PRG_PREFIX)ld
 
+SRC_DIR = pandos
+BUILD_DIR = build
+KERNEL_BUILD = kernel
+
+ALL_FILES := $(wildcard $(SRC_DIR)/**/**/*.c) $(wildcard $(SRC_DIR)/**/*.c) $(wildcard $(SRC_DIR)/*.c)
+ALL_HEADER_FILES := $(wildcard $(SRC_DIR)/**/**/*.h) $(wildcard $(SRC_DIR)/**/*.h) $(wildcard $(SRC_DIR)/*.h)
+
+ALL_OBJ_FILES := $(ALL_FILES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
+OBJ_FOLDERS:= $(addprefix $(BUILD_DIR)/, $(dir $(ALL_FILES:$(SRC_DIR)/%=%)))
+
 # uMPS3-related paths
 
 # Simplistic search for the umps3 installation prefix.
@@ -32,15 +42,23 @@ VPATH = $(UMPS3_DATA_DIR)
 
 all : kernel.core.umps
 
+kernel : $(ALL_OBJ_FILES) crtso.o libumps.o
+	$(LD) -o $@ $^ $(LDFLAGS)
+
 kernel.core.umps : kernel
 	umps3-elf2umps -k $<
 
-kernel : util.o pcb.o ash.o ns.o p1test.o crtso.o libumps.o
-	$(LD) -o $@ $^ $(LDFLAGS)
-
 clean :
-	-rm -f *.o kernel kernel.*.umps
-
-# Pattern rule for assembly modules
-%.o : %.S
+	-rm -rf *.o $(BUILD_DIR) kernel kernel.*.umps
+		
+crtso.o : crtso.S
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+libumps.o : libumps.S
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(ALL_OBJ_FILES): $(BUILD_DIR)/%.o : $(SRC_DIR)/%.c | $(OBJ_FOLDERS) 
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJ_FOLDERS):
+	mkdir -p $@

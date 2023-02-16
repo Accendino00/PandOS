@@ -1,1 +1,10 @@
 .vscode
+build
+*.o
+
+kernel
+kernel.core.umps
+kernel.stab.umps
+
+*.umps
+def
