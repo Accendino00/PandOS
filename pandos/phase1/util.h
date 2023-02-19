@@ -74,9 +74,4 @@ static inline int list_contains(const struct list_head *item, const struct list_
     return list_search(item, head, list_cmp) != NULL;
 }
 
-
-/* SMDs HELPER FUNCTIONS */
-
-
-
 #endif

@@ -62,3 +62,10 @@ $(ALL_OBJ_FILES): $(BUILD_DIR)/%.o : $(SRC_DIR)/%.c | $(OBJ_FOLDERS)
 
 $(OBJ_FOLDERS):
 	mkdir -p $@
+
+docs: 
+	doxygen docfile
+rm-docs: 
+	rm -rf docs
+open_docs:
+	xdg-open docs/html/index.html
