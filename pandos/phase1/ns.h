@@ -30,6 +30,15 @@ nsd_t* getNamespace(pcb_t* p, int type);
 int addNamespace(pcb_t *p, nsd_t* ns);
 
 /**
+ * @brief Function used internally to set namespace
+ * of all childs of a process.
+ * 
+ * @param p 
+ * @param ns 
+ */
+void setAllChildNamespace(struct list_head * p, nsd_t* ns);
+
+/**
  * @brief Allocates a namespace of type type from the correct list.
  * 
  * @param type The type of the namespace you want to allocate.

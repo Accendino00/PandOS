@@ -38,6 +38,7 @@ pcb_t *allocPcb()
     }
     else
     {
+        // If I do have free PCBs, I take the first one and I remove it from the list
         pcb_t *first = container_of(pcbFree_h.next, pcb_t, p_list);
         list_safe_del(pcbFree_h.next);
         return resetPcb(first);
@@ -105,8 +106,9 @@ pcb_t *outProcQ(struct list_head *head, pcb_t *p)
 
 int emptyChild(pcb_t *p)
 {
+    // If p is null, we choose to return false
     if (p == NULL)
-        return TRUE;
+        return FALSE;
 
     return list_empty(&p->p_child);
 };
@@ -122,7 +124,7 @@ void insertChild(pcb_t *prnt, pcb_t *p)
 
 pcb_t *removeChild(pcb_t *p)
 {
-    if (emptyChild(p))
+    if (emptyChild(p) || p == NULL)
         return NULL;
 
     return outChild(container_of(list_next(&p->p_child), pcb_t, p_sib));

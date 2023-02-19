@@ -55,7 +55,7 @@ void insertProcQ(struct list_head *head, pcb_t *p);
  * @brief Returns the head element of the list of processes pointed by head, without removing it.
  * 
  * @param head The list from which you want to get the head.
- * @return NULL if the empty is empty, otherwise the first element of the list pointed by head.
+ * @return NULL if the head is empty, otherwise the first element of the list pointed by head.
  */
 pcb_t *headProcQ(struct list_head *head);
 
