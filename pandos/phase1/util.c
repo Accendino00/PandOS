@@ -19,6 +19,7 @@ struct pcb_t* resetPcb(struct pcb_t* p) {
     p->p_s.pc_epc = 0;
     p->p_s.hi = 0;
     p->p_s.lo = 0;
+    p->p_supportStruct = NULL;
 
     for (int i = 0; i < STATE_GPR_LEN; i++)
     {
