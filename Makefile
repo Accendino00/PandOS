@@ -30,7 +30,7 @@ UMPS3_INCLUDE_DIR = $(UMPS3_DIR_PREFIX)/include/umps3
 # Compiler options
 CFLAGS_LANG = -ffreestanding
 CFLAGS_MIPS = -mips1 -mabi=32 -mno-gpopt -EL -G 0 -mno-abicalls -fno-pic -mfp32
-CFLAGS = $(CFLAGS_LANG) $(CFLAGS_MIPS) -I$(UMPS3_INCLUDE_DIR) -O0 -std=c99
+CFLAGS = $(CFLAGS_LANG) $(CFLAGS_MIPS) -I$(UMPS3_INCLUDE_DIR) -Ipandos/phase1/include -Ipandos/stdlib -Ipandos/phase2/include -O0 -std=c99
 
 # Linker options
 LDFLAGS = -G 0 -T $(UMPS3_DATA_DIR)/umpscore.ldscript -m elf32ltsmip
@@ -42,7 +42,7 @@ VPATH = $(UMPS3_DATA_DIR)
 
 all : kernel.core.umps
 
-kernel : $(ALL_OBJ_FILES) crtso.o libumps.o
+kernel : $(ALL_OBJ_FILES) crtso.o libumps.o 
 	$(LD) -o $@ $^ $(LDFLAGS)
 
 kernel.core.umps : kernel
@@ -57,7 +57,7 @@ crtso.o : crtso.S
 libumps.o : libumps.S
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(ALL_OBJ_FILES): $(BUILD_DIR)/%.o : $(SRC_DIR)/%.c | $(OBJ_FOLDERS) 
+$(ALL_OBJ_FILES):  $(BUILD_DIR)/%.o : $(SRC_DIR)/%.c | $(OBJ_FOLDERS) 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ_FOLDERS):
