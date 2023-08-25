@@ -13,9 +13,9 @@ int insertBlocked(int *semAdd, pcb_t* p){
 
     // We first check if the parameters are NULL
     if (semAdd == NULL || p == NULL)
-        return TRUE;
+        return 1;
     if (p->p_semAdd != NULL)
-        return TRUE;
+        return 2;
 
     // We search for the semaphore in the hash table
     hash_for_each_possible(semd_h, sem, s_link, (unsigned long)semAdd)
@@ -31,7 +31,7 @@ int insertBlocked(int *semAdd, pcb_t* p){
 
     // If we do not find it, we check if the list of free semaphores has elements
     if (list_empty((struct list_head*) &semdFree_h))
-        return TRUE;
+        return 3;
 
     // If the list of free semaphores isn't empty, then we take the first
     // semaphore, we set its values, and we insert it in the tail of the hash table

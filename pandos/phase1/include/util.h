@@ -74,4 +74,9 @@ static inline int list_contains(const struct list_head *item, const struct list_
     return list_search(item, head, list_cmp) != NULL;
 }
 
+static inline int list_null(const struct list_head *head)
+{
+    return head->prev == NULL && head->next == NULL;
+}
+
 #endif

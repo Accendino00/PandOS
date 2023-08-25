@@ -8,9 +8,6 @@
 #include <processor.h>
 #include <ash.h>
 
-#define IT_INTERVAL 100000UL
-#define PLT_INTERVAL 5000
-
 static volatile unsigned int process_count = 0;
 static volatile unsigned int soft_block_count = 0;
 static volatile pcb_t *current_active_process = NULL;
@@ -31,8 +28,8 @@ void init_scheduler()
     current_active_process = NULL;
     pid_counter = 0;
     store_tod(&start_time);
-    load_interval_timer(IT_INTERVAL);
-    load_processor_local_timer(PLT_INTERVAL);
+    reset_interval_timer();
+    reset_plt();
     mkEmptyProcQ(&ready_queue);
 }
 
@@ -43,7 +40,7 @@ void init_process(memaddr pc)
         halt("Error while initializing entry point!");
     new->p_s.pc_epc = new->p_s.reg_t9 = pc;
     RAMTOP(new->p_s.reg_sp);
-    new->p_s.status = new->p_s.status | IEPBITON | TEBITON;
+    new->p_s.status = new->p_s.status;
 
     PRINT_DEBUG("Process %d created\n", new->p_pid);
     return;
@@ -55,6 +52,14 @@ void enqueue_ready(pcb_t *process)
         return;
 
     insertProcQ(&ready_queue, process);
+}
+
+pcb_t *dequeue_ready(pcb_t *p)
+{
+    if (p == NULL)
+        return NULL;
+
+    return outProcQ(&ready_queue, p);
 }
 
 pcb_t *create_process()
@@ -111,29 +116,18 @@ int kill_children(pcb_t *p)
 
 void schedule(pcb_t *new, int action)
 {
-    if (new != NULL)
-    {
-        switch (action)
-        {
-        case SCH_MAKE_ACTIVE:
-            enqueue_ready(current_active_process);
-            current_active_process = new;
-            load_processor_local_timer(PLT_INTERVAL);
-            store_tod(&start_time);
-            load_state(&(current_active_process->p_s));
-            return;
-        case SCH_ENQUEUE:
-            store_tod(&start_time);
-            enqueue_ready(new);
-            break;
-        case SCH_DO_NOTHING:
-            return;
-        default:
-            panic("Invalid action in schedule\n");
-        }
-    }
+    if (new != NULL && action == SCH_ENQUEUE)
+        enqueue_ready(new);
 
-    if (emptyProcQ(&ready_queue))
+    if (new != NULL && action == SCH_PRESERVE)
+    {
+        current_active_process = new;
+    }
+    else if (!list_empty(&ready_queue))
+    {
+        current_active_process = removeProcQ(&ready_queue);
+    }
+    else
     {
         if (process_count == 0)
         {
@@ -141,7 +135,7 @@ void schedule(pcb_t *new, int action)
         }
         else if (process_count > 0 && soft_block_count > 0)
         {
-            load_interval_timer(IT_INTERVAL);
+            reset_interval_timer();
 
             // interrupts on
             int status = getSTATUS();
@@ -155,11 +149,17 @@ void schedule(pcb_t *new, int action)
             panic("Houston, we have a deadlock!\n");
         }
     }
-    current_active_process = removeProcQ(&ready_queue);
-    PRINT_DEBUG("Process %d scheduled\n", current_active_process->p_pid);
-    load_processor_local_timer(PLT_INTERVAL);
-    store_tod(&start_time);
-    load_state(&(current_active_process->p_s));
+
+    PRINT_DEBUG("Scheduler status: process_count: %d, soft_block_count: %d\n", process_count, soft_block_count);
+
+    if (current_active_process != NULL)
+    {
+        current_active_process->p_s.status |= TEBITON;
+        PRINT_DEBUG("Process %d scheduled\n", current_active_process->p_pid);
+        reset_plt();
+        store_tod(&start_time);
+        load_state(&(current_active_process->p_s));
+    }
 }
 
 pcb_t *get_current_process()
@@ -175,6 +175,16 @@ void decrement_process_count()
 void increment_process_count()
 {
     process_count++;
+}
+
+void increment_softblocked_count()
+{
+    soft_block_count++;
+}
+
+void decrement_softblocked_count()
+{
+    soft_block_count--;
 }
 
 inline cpu_t get_start_time()

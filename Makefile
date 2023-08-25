@@ -42,6 +42,9 @@ VPATH = $(UMPS3_DATA_DIR)
 
 all : kernel.core.umps
 
+run: all
+	umps3 Test
+
 kernel : $(ALL_OBJ_FILES) crtso.o libumps.o 
 	$(LD) -o $@ $^ $(LDFLAGS)
 

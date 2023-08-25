@@ -15,13 +15,13 @@
 // ### SCHEDULER CONTROL CODES
 
 // the returned process becomes the active one
-#define SCH_MAKE_ACTIVE 0
+#define SCH_PRESERVE 0
 
 // the returned process is enqueued
 #define SCH_ENQUEUE 1
 
-// default value; do the normal scheduling activities
-#define SCH_DO_NOTHING 2
+// block the current process
+#define SCH_BLOCK 0
 
 /**
  * Struct for scheduler control; returned by exceptions (syscalls, interrupts and generic exceptions)
@@ -50,6 +50,13 @@ void init_process(memaddr pc);
  * @param process The process to be enqueued.
  */
 void enqueue_ready(pcb_t *process);
+
+/**
+ * @brief Dequeues a process from the ready queue.
+ *
+ * @return pcb_t* The dequeued process.
+ */
+pcb_t *dequeue_ready(pcb_t *p);
 
 /**
  * @brief Creates a process in kernel mode.
@@ -101,6 +108,9 @@ void decrement_process_count();
  */
 void increment_process_count();
 
-extern inline cpu_t get_start_time();
+void increment_softblocked_count();
+void decrement_softblocked_count();
+
+extern cpu_t get_start_time();
 
 #endif

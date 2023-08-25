@@ -6,6 +6,8 @@
 
 // wrappers for the HALT, WAIT and PANIC macros
 
+#define IT_INTERVAL 100000
+
 /**
  * @brief Halts the processor, printing a formatted message
  */
@@ -86,5 +88,16 @@ static inline void load_interval_timer(cpu_t time) {
 static inline void load_processor_local_timer(cpu_t time) {
     setTIMER(TRANSLATE_TIME(time));
 }
+
+static inline void reset_plt()
+{
+    load_processor_local_timer(TIMESLICE);
+}
+
+static inline void reset_interval_timer() {
+    load_interval_timer(IT_INTERVAL);
+}
+
+
 
 #endif

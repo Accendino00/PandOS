@@ -14,11 +14,12 @@ extern void uTLB_RefillHandler();
 
 /**
  * @brief Initializes the Pandos kernel.
- * 
+ *
  * This function inizializes the pass up vector, the data structures used by
  * the kernel and the scheduler.
-*/
-void init_kernel() {
+ */
+void init_kernel()
+{
     init_passupvector((memaddr)uTLB_RefillHandler, (memaddr)exception_handler);
     initPcbs();
     initASH();
@@ -28,56 +29,59 @@ void init_kernel() {
 }
 
 state_t second_state;
-#define LOOPNUM 10000
-#define MINLOOPTIME 30000
+int sem_test = 1;
 
 void test3()
 {
     PRINT_DEBUG("Test process 2\n");
 
-    
+    SYSCALL(PASSEREN, (int)&sem_test, 0, 0);
+    PRINT_DEBUG("Test process 2 passed semaphore\n");
 
     SYSCALL(TERMPROCESS, 0, 0, 0);
 }
 
-
-
-void test2() {
+void test2()
+{
     PRINT_DEBUG("Test process\n");
 
     set_state(&second_state);
+    second_state.reg_sp = second_state.reg_sp - QPAGE;
     second_state.pc_epc = second_state.reg_t9 = (memaddr)test3;
+    second_state.status = second_state.status | IEPBITON | TEBITON;
 
-    int pid2 = SYSCALL(CREATEPROCESS,(int)&second_state, 0, 0);
+    int pid2 = SYSCALL(CREATEPROCESS, (int)&second_state, 0, 0);
 
-    cpu_t now1, now2;
-    cpu_t cpu_t1, cpu_t2;
+    PRINT_DEBUG("Starting process %d\n", pid2);
+    SYSCALL(VERHOGEN, (int)&sem_test, 0, 0);
+    PRINT_DEBUG("Resuming process %d\n", 0);
+
+    cpu_t cpu_t1, cpu_t2, now1, now2;
+    const int MINLOOPTIME = 30000;
+    const int LOOPNUM = 10000;
+    int i;
 
     STCK(now1);                         /* time of day   */
     cpu_t1 = SYSCALL(GETTIME, 0, 0, 0); /* CPU time used */
-    PRINT_DEBUG("Accumulated time by p2: %d\n", cpu_t1);
 
-    int i;
     /* delay for several milliseconds */
     for (i = 1; i < LOOPNUM; i++)
         ;
 
     cpu_t2 = SYSCALL(GETTIME, 0, 0, 0); /* CPU time used */
-    PRINT_DEBUG("Accumulated time by p2 (again): %d\n", cpu_t2);
-    STCK(now2); /* time of day  */
+    STCK(now2);                         /* time of day  */
 
-    if (((now2 - now1) >= (cpu_t2 - cpu_t1)) &&
-        ((cpu_t2 - cpu_t1) >= (MINLOOPTIME / (*((cpu_t *)TIMESCALEADDR)))))
+    if (((now2 - now1) >= (cpu_t2 - cpu_t1)) && ((cpu_t2 - cpu_t1) >= (MINLOOPTIME / (*((cpu_t *)TIMESCALEADDR)))))
     {
-        PRINT_DEBUG("p2 is OK\n");
+        printf("p2 is OK\n");
     }
     else
     {
         if ((now2 - now1) < (cpu_t2 - cpu_t1))
-            PRINT_DEBUG("error: more cpu time than real time\n");
+            printf("error: more cpu time than real time\n");
         if ((cpu_t2 - cpu_t1) < (MINLOOPTIME / (*((cpu_t *)TIMESCALEADDR))))
-            PRINT_DEBUG("error: not enough cpu time went by (%d)\n", cpu_t2 - cpu_t1);
-        halt("p2 blew it!\n");
+            printf("error: not enough cpu time went by\n");
+        printf("p2 blew it!\n");
     }
 
     PRINT_DEBUG("Created process %d\n", pid2);
@@ -89,10 +93,11 @@ void test2() {
 extern void test();
 
 /** PANDOS ENTRY POINT */
-int main() {
+int main()
+{
     init_kernel();
     init_process((memaddr)test2);
-    schedule(NULL, SCH_DO_NOTHING);
+    schedule(NULL, SCH_BLOCK);
 
     return 0;
 }

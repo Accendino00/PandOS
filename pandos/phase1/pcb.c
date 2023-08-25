@@ -5,6 +5,9 @@
 static volatile struct list_head pcbFree_h;
 static volatile struct pcb_t pcbFree_table[MAXPROC];
 
+pcb_t* get_pcb_table() {
+    return pcbFree_table;
+}
 // PCBs allocation
 
 void initPcbs()

@@ -14,6 +14,8 @@
  */
 void initPcbs();
 
+pcb_t* get_pcb_table();
+
 /**
  * @brief Inserts the PCB pointed by p in the list of free PCBs.
  * 

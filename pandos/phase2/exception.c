@@ -16,49 +16,74 @@
 #include <syscall.h>
 #include <processor.h>
 #include "assert.h"
+#include "interrupt.h"
+
+#include <umps/arch.h>
 
 void exception_handler()
 {
-    PRINT_DEBUG("Exception handler\n");
-    cpu_t exc_start_time;
+    int status = getSTATUS();
+    status &= ~IECON; // Disable interrupts
+    setSTATUS(status);
 
+    PRINT_DEBUG("Exception handler --> cause: %d\n", CAUSE_GET_EXCCODE(getCAUSE()));
+    cpu_t exc_start_time;
     scheduler_control_t scheduler_control;
 
     if (get_current_process() != NULL)
     {
         store_tod(&exc_start_time);
-        get_current_process()->p_time += (exc_start_time - get_start_time());
+        cpu_t new_acc_time = exc_start_time - get_start_time();
+        get_current_process()->p_time += new_acc_time;
         memcpy(&(get_current_process()->p_s), (state_t *)BIOSDATAPAGE, sizeof(state_t));
     }
 
     switch (CAUSE_GET_EXCCODE(getCAUSE()))
     {
-    case 0:
-        PRINT_DEBUG("Interrupt with code %d\n", getCAUSE());
+    case EXC_INT:
+        // Case {0}   : Interrupts
+        // We pass it to the interrupt handler
         // TO-DO: Interrupt handler
+        scheduler_control = interrupt_handler(getCAUSE());
         break;
-    case 1:
-    case 2:
-    case 3:
+    case EXC_MOD:
+    case EXC_TLBL:
+    case EXC_TLBS:
+        // Case {1-3} : TLB Exceptions
+        // We pass it to the pass up or die function (Where we have the TLB exception handler)
         scheduler_control = passup_or_terminate(PGFAULTEXCEPT);
         break;
-    case 8:
-    {
-        cpu_t sys_start_time;
-        cpu_t sys_finish_time;
-        store_tod(&sys_start_time);
-        scheduler_control = syscall_handler();
-        store_tod(&sys_finish_time);
-        get_current_process()->p_time += (sys_finish_time - sys_start_time);
+    case EXC_SYS:
+        // Case {8}   : SYSCALL
+        // We pass it to the syscall handler
+        {
+            // We add the time to the process because the time it takes
+            // to execute a syscall is time "spent" by the process, since
+            // its the one requesting it, whereas other exceptions are not.
+            cpu_t sys_start_time;
+            cpu_t sys_finish_time;
+            store_tod(&sys_start_time);
+            scheduler_control = syscall_handler();
+            store_tod(&sys_finish_time);
+            get_current_process()->p_time += (sys_finish_time - sys_start_time);
 
-        get_current_process()->p_s.pc_epc += WORD_SIZE;
-        get_current_process()->p_s.reg_t9 += WORD_SIZE;
-        break;
-    }
+            get_current_process()->p_s.pc_epc += WORD_SIZE;
+
+            // #TODO - da rimuovere se funziona senza, da aggiungere se non funziona {slide 40}
+            // get_current_process()->p_s.reg_t9 += WORD_SIZE;
+            break;
+        }
     default:
+        // Case {4-7, 9-12} : Program Traps
+        // We pass it up to the pass up or die function (Where we have the program traps exception handler)
         scheduler_control = passup_or_terminate(GENERALEXCEPT);
         break;
     }
+
+    status = getSTATUS();
+    status |= IEPBITON; // Enable interrupts
+    setSTATUS(status);
+
     schedule(scheduler_control.pcb, scheduler_control.ret);
 }
 
@@ -78,7 +103,7 @@ scheduler_control_t passup_or_terminate(int cause)
     pcb_t *const current_process = get_current_process();
 
     if (current_process == NULL)
-        return (scheduler_control_t){NULL, SCH_DO_NOTHING};
+        return (scheduler_control_t){NULL, SCH_BLOCK};
     else if (current_process->p_supportStruct == NULL)
     {
         PRINT_DEBUG("Process %d terminated\n", current_process->p_pid);
@@ -91,5 +116,5 @@ scheduler_control_t passup_or_terminate(int cause)
         load_context(&(current_process->p_supportStruct->sup_exceptContext[cause]));
     }
 
-    return (scheduler_control_t){NULL, SCH_DO_NOTHING};
+    return (scheduler_control_t){NULL, SCH_BLOCK};
 }
