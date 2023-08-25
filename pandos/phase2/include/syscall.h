@@ -5,11 +5,11 @@
 
 // macros for syscall parameters handling
 
-#define RETURN_SYS(x, type) get_current_process()->p_s.reg_v0 = (type)(x)
-#define SYSCALL_TYPE (get_current_process()->p_s.reg_a0)
-#define FIRST_ARG(type) (type)(get_current_process()->p_s.reg_a1)
-#define SECOND_ARG(type) (type)(get_current_process()->p_s.reg_a2)
-#define THIRD_ARG(type) (type)(get_current_process()->p_s.reg_a3)
+#define RETURN_SYS(x, type) get_current_process()->p_s.reg_v0 = (type)(x) // return value placed in register v0
+#define SYSCALL_TYPE (get_current_process()->p_s.reg_a0)                  // syscall type accessed from register a0
+#define FIRST_ARG(type) (type)(get_current_process()->p_s.reg_a1)         // first argument accessed from register a1
+#define SECOND_ARG(type) (type)(get_current_process()->p_s.reg_a2)        // second argument accessed from register a2
+#define THIRD_ARG(type) (type)(get_current_process()->p_s.reg_a3)         // third argument accessed from register a3
 
 // syscalls codes
 
@@ -28,8 +28,6 @@
  * @brief Handles a syscall
  *
  * @return scheduler_control_t The action to be taken by the scheduler after the syscall
- *
- * @note The function returns a <code>{NULL, SCH_DO_NOTHING}</code>, if standard scheduler behaviour is to be applied
  */
 scheduler_control_t syscall_handler();
 
@@ -58,22 +56,22 @@ scheduler_control_t sys_create_process(); // CREATEPROCESS
  *
  * @param int pid The pid of the process to terminate. If 0, the calling process is terminated.
  */
-void sys_terminate_process(); // TERMPROCESS
+scheduler_control_t sys_terminate_process(); // TERMPROCESS
 
-void sys_passeren();                    // PASSEREN
-void sys_verhogen();                    // VERHOGEN
-void sys_doio();                        // DOIO
+scheduler_control_t sys_passeren(); // PASSEREN
+scheduler_control_t sys_verhogen(); // VERHOGEN
+void sys_doio();     // DOIO
 
 /**
  * @brief Handles the GETTIME syscall.
- * 
+ *
  * This system call returns the accumulated cpu time of the calling process.
- * 
+ *
  * @return cpu_t The accumulated time of the calling process.
-*/
+ */
 scheduler_control_t sys_get_cpu_time(); // GETTIME
 
-void sys_wait_clock();                  // CLOCKWAIT
+scheduler_control_t sys_wait_clock(); // CLOCKWAIT
 
 /**
  * @brief Handles the GETSUPPORTPTR syscall
@@ -82,9 +80,16 @@ void sys_wait_clock();                  // CLOCKWAIT
  *
  * @return support_t* The support struct of the calling process
  */
-void sys_get_support_data(); // GETSUPPORTPTR
+scheduler_control_t sys_get_support_data(); // GETSUPPORTPTR
 
 void sys_get_process_id(); // GETPROCESSID
 void sys_get_children();   // GETCHILDREN
+
+/**
+ * @brief Checks if the calling process is in kernel mode
+ * 
+ * @return int 0 if the calling process is in user mode, 1 if it is in kernel mode
+ */
+int is_kernel_mode();
 
 #endif
