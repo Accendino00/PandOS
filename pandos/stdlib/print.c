@@ -121,10 +121,18 @@ int printf(char *str, ...)
                 j += strlen(tmp);
                 break;
             }
+            case 'b':
+            {
+                itoa(va_arg(vl, int), tmp, 2);
+                strcpy(&buff[j], tmp);
+                j += strlen(tmp);
+                break;
+            }
             case 's':
             {
-                strcpy(&buff[j], va_arg(vl, char *));
-                j += strlen(va_arg(vl, char *));
+                const char* str_ = va_arg(vl, const char*);
+                strcpy(&buff[j], str_);
+                j += strlen(str_);
                 break;
             }
             }
