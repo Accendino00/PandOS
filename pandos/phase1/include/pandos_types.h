@@ -79,7 +79,7 @@ typedef struct pcb_t
     /* Process ID */
     int p_pid;
 
-    unsigned int* test;
+    unsigned int* p_savedDeviceStatus;
 } pcb_t, *pcb_PTR;
 
 /* semaphore descriptor (SEMD) data structure */

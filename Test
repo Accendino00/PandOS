@@ -9,6 +9,10 @@
         "terminal0": {
             "enabled": true,
             "file": "term0.umps"
+        },
+        "terminal1": {
+            "enabled": true,
+            "file": "term1.umps"
         }
     },
     "execution-rom": "/usr/share/umps3/exec.rom.umps",

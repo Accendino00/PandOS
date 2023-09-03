@@ -106,7 +106,7 @@ void interruptHandler(state_t *excState)
             if (p != NULL)
             {
                 p->p_s.reg_v0 = 0;
-                (p->test)[STATUS] = status;
+                (p->p_savedDeviceStatus)[STATUS] = status;
                 enqueueReady(p);
             }
         }
@@ -121,7 +121,7 @@ void interruptHandler(state_t *excState)
             if (p != NULL)
             {
                 p->p_s.reg_v0 = 0;
-                (p->test)[STATUS] = status;
+                (p->p_savedDeviceStatus)[STATUS] = status;
                 enqueueReady(p);
             }
         }
