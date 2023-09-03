@@ -42,6 +42,9 @@ VPATH = $(UMPS3_DATA_DIR)
 
 all : kernel.core.umps
 
+remake: clean all run
+	@echo "Restarting build..."
+
 run: all
 	umps3 Test
 

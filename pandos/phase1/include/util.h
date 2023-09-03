@@ -79,4 +79,14 @@ static inline int list_null(const struct list_head *head)
     return head->prev == NULL && head->next == NULL;
 }
 
+static inline int list_size(const struct list_head *head)
+{
+    int size = 0;
+    struct list_head *tmp;
+    for(tmp = head->next; tmp != head; tmp = tmp->next) {
+        size++;
+    }
+    return size;
+}
+
 #endif

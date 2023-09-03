@@ -1,15 +1,18 @@
 #include "ash.h"
 #include "util.h"
 #include "hashtable.h"
+#include "pcb.h"
+#include "print.h"
+#include "devices.h"
 
 /** Declaration of the lists */
 static volatile struct list_head semdFree_h;
 static volatile struct semd_t semdFree_table[MAXPROC];
 static volatile DEFINE_HASHTABLE(semd_h, 12);
 
-
-int insertBlocked(int *semAdd, pcb_t* p){
-    semd_t * sem;
+int insertBlocked(int *semAdd, pcb_t *p)
+{
+    semd_t *sem;
 
     // We first check if the parameters are NULL
     if (semAdd == NULL || p == NULL)
@@ -30,7 +33,7 @@ int insertBlocked(int *semAdd, pcb_t* p){
     }
 
     // If we do not find it, we check if the list of free semaphores has elements
-    if (list_empty((struct list_head*) &semdFree_h))
+    if (list_empty((struct list_head *)&semdFree_h))
         return 3;
 
     // If the list of free semaphores isn't empty, then we take the first
@@ -40,17 +43,18 @@ int insertBlocked(int *semAdd, pcb_t* p){
 
     sem->s_key = semAdd;
     INIT_LIST_HEAD(&sem->s_procq);
-    
+
     list_add_tail(&p->p_list, &sem->s_procq);
     p->p_semAdd = semAdd;
     hash_add(semd_h, &sem->s_link, (unsigned long)semAdd);
-    
+
     return FALSE;
 };
 
-pcb_t* removeBlocked(int *semAdd){
-    semd_t * sem;
-    pcb_t * p;
+pcb_t *removeBlocked(int *semAdd)
+{
+    semd_t *sem;
+    pcb_t *p;
 
     // We first check if the parameters are NULL
     if (semAdd == NULL)
@@ -62,7 +66,7 @@ pcb_t* removeBlocked(int *semAdd){
         // If we do find the semaphore
         if (sem->s_key == semAdd)
         {
-            // We remove the first process from the queue of processes 
+            // We remove the first process from the queue of processes
             // blocked associated with this semaphore
             if (list_empty(&sem->s_procq))
                 return NULL;
@@ -75,16 +79,17 @@ pcb_t* removeBlocked(int *semAdd){
             if (list_empty(&sem->s_procq))
             {
                 hash_del(&sem->s_link);
-                list_add(&sem->s_freelink, (struct list_head*) &semdFree_h);
+                list_add(&sem->s_freelink, (struct list_head *)&semdFree_h);
             }
             return p;
         }
     }
-    return NULL;    
+    return NULL;
 };
 
-pcb_t* outBlocked(pcb_t *p){
-    semd_t * sem;
+pcb_t *outBlocked(pcb_t *p)
+{
+    semd_t *sem;
 
     // We first check if the parameters are NULL
     if (p == NULL)
@@ -108,7 +113,7 @@ pcb_t* outBlocked(pcb_t *p){
             if (list_empty(&sem->s_procq))
             {
                 hash_del(&sem->s_link);
-                list_add(&sem->s_freelink, (struct list_head*) &semdFree_h);
+                list_add(&sem->s_freelink, (struct list_head *)&semdFree_h);
             }
 
             return p;
@@ -118,8 +123,9 @@ pcb_t* outBlocked(pcb_t *p){
     return NULL;
 };
 
-pcb_t* headBlocked(int *semAdd){
-    semd_t * sem;
+pcb_t *headBlocked(int *semAdd)
+{
+    semd_t *sem;
 
     // Check for NULL parameters
     if (semAdd == NULL)
@@ -143,11 +149,12 @@ pcb_t* headBlocked(int *semAdd){
     return NULL;
 };
 
-void initASH(){
+void initASH()
+{
     int i;
 
     // We initialize the lists
-    INIT_LIST_HEAD((struct list_head*) &semdFree_h);
+    INIT_LIST_HEAD((struct list_head *)&semdFree_h);
     hash_init(semd_h);
 
     // We add all the semaphores to the list of free semaphores
@@ -156,3 +163,48 @@ void initASH(){
         list_add(&semdFree_table[i].s_freelink, &semdFree_h);
     }
 };
+
+pcb_t *findPcb(int pid, struct list_head *list)
+{
+    pcb_t *p;
+
+    p = searchPcbByPid(pid, list);
+
+    if (p == NULL)
+    {
+        int btk = 0;
+        semd_t *it;
+        hash_for_each(semd_h, btk, it, s_link)
+        {
+            p = searchPcbByPid(pid, &it->s_procq);
+            if (p != NULL)
+            {
+                return p;
+            }
+        }
+    }
+    return p;
+}
+
+void getBlockedProcesses()
+{
+    int btk = 0;
+    semd_t *it;
+    pcb_t *p;
+    hash_for_each(semd_h, btk, it, s_link)
+    {
+        if ((memaddr)it->s_key >= (memaddr)getDevSem(0) && (memaddr)it->s_key <= (memaddr)getDevSem(47))
+        {
+            int index = ((int)it->s_key - (int)getDevSem(0)) / sizeof(unsigned int);
+            printf("Processes blocked on line %d, device %d: ", index / 8 + 3, index % 8);
+            list_for_each_entry(p, &it->s_procq, p_list)
+            {
+                printf("%d\n", p->p_pid);
+            }
+        }else{
+        list_for_each_entry(p, &it->s_procq, p_list)
+        {
+            printf("Process %d is blocked on %p\n", p->p_pid, it->s_key);
+        }}
+    }
+}

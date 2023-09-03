@@ -20,12 +20,11 @@
 #include <pandos_types.h>
 #include <ns.h>
 #include <umps/libumps.h>
-#include "print.h"
 
 typedef unsigned int devregtr;
 
 /* hardware constants */
-#define printfCHR 2
+#define PRINTCHR 2
 #define RECVD 5
 
 #define CLOCKINTERVAL 100000UL /* interval to V clock semaphore */
@@ -120,10 +119,30 @@ void p5sys(), p8root(), child1(), child2(), p8leaf1(), p8leaf2(), p8leaf3(),
 extern void p5gen();
 extern void p5mm();
 
+/* a procedure to print on terminal 0 */
+void print(char *msg)
+{
+    char *s = msg;
+    devregtr *base = (devregtr *)(TERM0ADDR);
+    devregtr *command = base + 2;
+    devregtr status;
 
+    SYSCALL(PASSEREN, (int)&sem_term_mut, 0, 0); /* P(sem_term_mut) */
+    while (*s != EOS)
+    {
+        devregtr value[2] = {0, PRINTCHR | (((devregtr)*s) << 8)};
+        status = SYSCALL(DOIO, (int)command, (int)value, 0);
+        if (status != 0 || (value[0] & TERMSTATMASK) != RECVD)
+        {
+            PANIC();
+        }
+        s++;
+    }
+    SYSCALL(VERHOGEN, (int)&sem_term_mut, 0, 0); /* V(sem_term_mut) */
+}
 
 /* TLB-Refill Handler */
-/* One can place debug calls here, but not calls to printf */
+/* One can place debug calls here, but not calls to print */
 void uTLB_RefillHandler()
 {
 
@@ -142,7 +161,7 @@ void test()
 {
     SYSCALL(VERHOGEN, (int)&sem_testsem, 0, 0); /* V(sem_testsem)   */
 
-    printf("p1 v(sem_testsem)\n");
+    print("p1 v(sem_testsem)\n");
 
     /* set up states of the other processes */
 
@@ -159,7 +178,7 @@ void test()
     STST(&p2state);
     p2state.reg_sp = hp_p2state.reg_sp - QPAGE;
     p2state.pc_epc = p2state.reg_t9 = (memaddr)p2;
-    p2state.status = p2state.status | IEPBITON  | TEBITON;
+    p2state.status = p2state.status | IEPBITON | CAUSEINTMASK | TEBITON;
 
     STST(&p3state);
     p3state.reg_sp = p2state.reg_sp - QPAGE;
@@ -259,7 +278,7 @@ void test()
     /* create process p2 */
     p2pid = SYSCALL(CREATEPROCESS, (int)&p2state, (int)NULL, (int)NULL); /* start p2     */
 
-    printf("p2 was started\n");
+    print("p2 was started\n");
 
     SYSCALL(VERHOGEN, (int)&sem_startp2, 0, 0); /* V(sem_startp2)   */
 
@@ -268,12 +287,12 @@ void test()
     /* make sure we really blocked */
     if (p1p2synch == 0)
     {
-        printf("error: p1/p2 synchronization bad\n");
+        print("error: p1/p2 synchronization bad\n");
     }
 
     p3pid = SYSCALL(CREATEPROCESS, (int)&p3state, (int)NULL, (int)NULL); /* start p3     */
 
-    printf("p3 is started\n");
+    print("p3 is started\n");
 
     SYSCALL(PASSEREN, (int)&sem_endp3, 0, 0); /* P(sem_endp3)     */
 
@@ -300,7 +319,7 @@ void test()
 
     SYSCALL(PASSEREN, (int)&sem_endp5, 0, 0); /* P(sem_endp5)		*/
 
-    printf("p1 knows p5 ended\n");
+    print("p1 knows p5 ended\n");
 
     SYSCALL(PASSEREN, (int)&sem_blkp4, 0, 0); /* P(sem_blkp4)		*/
 
@@ -323,23 +342,29 @@ void test()
     SYSCALL(CREATEPROCESS, (int)&p11state, (int)NULL, (int)NULL); /* start p7		*/
     SYSCALL(PASSEREN, (int)&sem_p11, 0, 0);
 
-    printf("p1 finishes OK -- TTFN\n");
+    print("p1 finishes OK -- TTFN\n");
     *((memaddr *)BADADDR) = 0; /* terminate p1 */
 
     /* should not reach this point, since p1 just got a program trap */
-    printf("error: p1 still alive after progtrap & no trap vector\n");
+    print("error: p1 still alive after progtrap & no trap vector\n");
     PANIC(); /* PANIC !!!     */
 }
 
 /* p2 -- semaphore and cputime-SYS test process */
 void p2()
 {
-    printf("We in!\n");
     int i;                                      /* just to waste time  */
     cpu_t now1, now2;                           /* times of day        */
     cpu_t cpu_t1, cpu_t2;                       /* cpu time used       */
     SYSCALL(PASSEREN, (int)&sem_startp2, 0, 0); /* P(sem_startp2)   */
-    printf("p2 starts\n");
+    print("p2 starts\n");
+
+    int pid = SYSCALL(GETPROCESSID, 0, 0, 0);
+    if (pid != p2pid)
+    {
+        print("Inconsistent process id for p2!\n");
+        PANIC();
+    }
 
     /* initialize all semaphores in the s[] array */
     for (i = 0; i <= MAXSEM; i++)
@@ -353,9 +378,9 @@ void p2()
         SYSCALL(VERHOGEN, (int)&s[i], 0, 0); /* V(S[I]) */
         SYSCALL(PASSEREN, (int)&s[i], 0, 0); /* P(S[I]) */
         if (s[i] != 0)
-            printf("error: p2 bad v/p pairs\n");
+            print("error: p2 bad v/p pairs\n");
     }
-    printf("p2 v's successfully\n");
+    print("p2 v's successfully\n");
 
     /* test of SYS6 */
     STCK(now1);                         /* time of day   */
@@ -370,15 +395,15 @@ void p2()
 
     if (((now2 - now1) >= (cpu_t2 - cpu_t1)) && ((cpu_t2 - cpu_t1) >= (MINLOOPTIME / (*((cpu_t *)TIMESCALEADDR)))))
     {
-        printf("p2 is OK\n");
+        print("p2 is OK\n");
     }
     else
     {
         if ((now2 - now1) < (cpu_t2 - cpu_t1))
-            printf("error: more cpu time than real time\n");
+            print("error: more cpu time than real time\n");
         if ((cpu_t2 - cpu_t1) < (MINLOOPTIME / (*((cpu_t *)TIMESCALEADDR))))
-            printf("error: not enough cpu time went by\n");
-        printf("p2 blew it!\n");
+            print("error: not enough cpu time went by\n");
+        print("p2 blew it!\n");
     }
 
     p1p2synch = 1; /* p1 will check this */
@@ -388,7 +413,7 @@ void p2()
     SYSCALL(TERMPROCESS, 0, 0, 0); /* terminate p2 */
 
     /* just did a SYS2, so should not get to this point */
-    printf("error: p2 didn't terminate\n");
+    print("error: p2 didn't terminate\n");
     PANIC(); /* PANIC!           */
 }
 
@@ -402,17 +427,15 @@ void p3()
     time1 = 0;
     time2 = 0;
 
-    
     /* loop until we are delayed at least half of clock V interval */
     while (time2 - time1 < (CLOCKINTERVAL >> 1))
     {
         STCK(time1); /* time of day     */
-        PRINT_DEBUG("Looped %d times\n", i++);
         SYSCALL(CLOCKWAIT, 0, 0, 0);
         STCK(time2); /* new time of day */
     }
 
-    printf("p3 - CLOCKWAIT OK\n");
+    print("p3 - CLOCKWAIT OK\n");
 
     /* now let's check to see if we're really charge for CPU
        time correctly */
@@ -427,17 +450,17 @@ void p3()
 
     if (cpu_t2 - cpu_t1 < (MINCLOCKLOOP / (*((cpu_t *)TIMESCALEADDR))))
     {
-        printf("error: p3 - CPU time incorrectly maintained\n");
+        print("error: p3 - CPU time incorrectly maintained\n");
     }
     else
     {
-        printf("p3 - CPU time correctly maintained\n");
+        print("p3 - CPU time correctly maintained\n");
     }
 
     int pid = SYSCALL(GETPROCESSID, 0, 0, 0);
     if (pid != p3pid)
     {
-        printf("Inconsistent process id for p3!\n");
+        print("Inconsistent process id for p3!\n");
         PANIC();
     }
 
@@ -446,7 +469,7 @@ void p3()
     SYSCALL(TERMPROCESS, 0, 0, 0); /* terminate p3    */
 
     /* just did a SYS2, so should not get to this point */
-    printf("error: p3 didn't terminate\n");
+    print("error: p3 didn't terminate\n");
     PANIC(); /* PANIC            */
 }
 
@@ -456,19 +479,19 @@ void p4()
     switch (p4inc)
     {
     case 1:
-        printf("first incarnation of p4 starts\n");
+        print("first incarnation of p4 starts\n");
         p4inc++;
         break;
 
     case 2:
-        printf("second incarnation of p4 starts\n");
+        print("second incarnation of p4 starts\n");
         break;
     }
 
     int pid = SYSCALL(GETPROCESSID, 0, 0, 0);
     if (pid != p4pid)
     {
-        printf("Inconsistent process id for p4!\n");
+        print("Inconsistent process id for p4!\n");
         PANIC();
     }
 
@@ -489,11 +512,11 @@ void p4()
 
     SYSCALL(VERHOGEN, (int)&sem_endp4, 0, 0); /* V(sem_endp4)          */
 
-    printf("p4 incarnation terminating\n");
+    print("p4 incarnation terminating\n");
     SYSCALL(TERMPROCESS, 0, 0, 0); /* terminate p4      */
 
     /* just did a SYS2, so should not get to this point */
-    printf("error: p4 didn't terminate\n");
+    print("error: p4 didn't terminate\n");
     PANIC(); /* PANIC            */
 }
 
@@ -505,13 +528,13 @@ void p5gen()
     switch (exeCode)
     {
     case BUSERROR:
-        printf("Bus Error (as expected): Access non-existent memory\n");
+        print("Bus Error (as expected): Access non-existent memory\n");
         pFiveSupport.sup_exceptState[GENERALEXCEPT].pc_epc = (memaddr)p5a; /* Continue with p5a() */
         pFiveSupport.sup_exceptState[GENERALEXCEPT].reg_t9 = (memaddr)p5a; /* Continue with p5a() */
         break;
 
     case RESVINSTR:
-        printf("privileged instruction\n");
+        print("privileged instruction\n");
         /* return in kernel mode */
         pFiveSupport.sup_exceptState[GENERALEXCEPT].pc_epc = (memaddr)p5b; /* Continue with p5b() */
         pFiveSupport.sup_exceptState[GENERALEXCEPT].reg_t9 = (memaddr)p5b; /* Continue with p5b() */
@@ -520,7 +543,7 @@ void p5gen()
         break;
 
     case ADDRERROR:
-        printf("Address Error (as expected): non-kuseg access w/KU=1\n");
+        print("Address Error (as expected): non-kuseg access w/KU=1\n");
         /* return in kernel mode */
         pFiveSupport.sup_exceptState[GENERALEXCEPT].pc_epc = (memaddr)p5b; /* Continue with p5b() */
         pFiveSupport.sup_exceptState[GENERALEXCEPT].reg_t9 = (memaddr)p5b; /* Continue with p5b() */
@@ -533,7 +556,7 @@ void p5gen()
         break;
 
     default:
-        printf("other program trap\n");
+        print("other program trap\n");
     }
 
     LDST(&(pFiveSupport.sup_exceptState[GENERALEXCEPT]));
@@ -542,16 +565,16 @@ void p5gen()
 /* p5's memory management trap handler */
 void p5mm()
 {
-    printf("memory management trap\n");
+    print("memory management trap\n");
 
     support_t *pFiveSupAddr = (support_t *)SYSCALL(GETSUPPORTPTR, 0, 0, 0);
     if ((pFiveSupAddr) != &(pFiveSupport))
     {
-        printf("Support Structure Address Error\n");
+        print("Support Structure Address Error\n");
     }
     else
     {
-        printf("Correct Support Structure Address\n");
+        print("Correct Support Structure Address\n");
     }
 
     pFiveSupport.sup_exceptState[PGFAULTEXCEPT].status =
@@ -571,11 +594,11 @@ void p5sys()
     switch (p5status)
     {
     case ON:
-        printf("High level SYS call from user mode process\n");
+        print("High level SYS call from user mode process\n");
         break;
 
     case OFF:
-        printf("High level SYS call from kernel mode process\n");
+        print("High level SYS call from kernel mode process\n");
         break;
     }
     pFiveSupport.sup_exceptState[GENERALEXCEPT].pc_epc =
@@ -586,7 +609,7 @@ void p5sys()
 /* p5 -- SYS5 test process */
 void p5()
 {
-    printf("p5 starts\n");
+    print("p5 starts\n");
 
     /* cause a pgm trap access some non-existent memory */
     *p5MemLocation = *p5MemLocation + 1; /* Should cause a program trap */
@@ -631,19 +654,19 @@ void p5b()
     SYSCALL(TERMPROCESS, 0, 0, 0);
 
     /* should have terminated, so should not get to this point */
-    printf("error: p5 didn't terminate\n");
+    print("error: p5 didn't terminate\n");
     PANIC(); /* PANIC            */
 }
 
 /*p6 -- high level syscall without initializing passup vector */
 void p6()
 {
-    printf("p6 starts\n");
+    print("p6 starts\n");
 
     SYSCALL(USERSYSCALL, 0, 0, 0); /* should cause termination because p6 has no
            trap vector */
 
-    printf("error: p6 alive after SYS9() with no trap vector\n");
+    print("error: p6 alive after SYS9() with no trap vector\n");
 
     PANIC();
 }
@@ -651,11 +674,11 @@ void p6()
 /*p7 -- program trap without initializing passup vector */
 void p7()
 {
-    printf("p7 starts\n");
+    print("p7 starts\n");
 
     *((memaddr *)BADADDR) = 0;
 
-    printf("error: p7 alive after program trap with no trap vector\n");
+    print("error: p7 alive after program trap with no trap vector\n");
     PANIC();
 }
 
@@ -666,7 +689,7 @@ void p8root()
 {
     int grandchild = 0;
 
-    printf("p8root starts\n");
+    print("p8root starts\n");
     SYSCALL(CREATEPROCESS, (int)&child1state, (int)NULL, (int)NULL);
 
     SYSCALL(CREATEPROCESS, (int)&child2state, (int)NULL, (int)NULL);
@@ -684,12 +707,12 @@ void p8root()
 
 void child1()
 {
-    printf("child1 starts\n");
+    print("child1 starts\n");
 
     int ppid = SYSCALL(GETPROCESSID, 1, 0, 0);
     if (ppid != p8pid)
     {
-        printf("Inconsistent (parent) process id for p8's first child\n");
+        print("Inconsistent (parent) process id for p8's first child\n");
         PANIC();
     }
 
@@ -702,12 +725,12 @@ void child1()
 
 void child2()
 {
-    printf("child2 starts\n");
+    print("child2 starts\n");
 
     int ppid = SYSCALL(GETPROCESSID, 1, 0, 0);
     if (ppid != p8pid)
     {
-        printf("Inconsistent (parent) process id for p8's second child\n");
+        print("Inconsistent (parent) process id for p8's second child\n");
         PANIC();
     }
 
@@ -722,68 +745,68 @@ void child2()
 
 void p8leaf1()
 {
-    printf("leaf process (1) starts\n");
+    print("leaf process (1) starts\n");
     SYSCALL(VERHOGEN, (int)&sem_endcreate[0], 0, 0);
     SYSCALL(PASSEREN, (int)&sem_blkp8, 0, 0);
 }
 
 void p8leaf2()
 {
-    printf("leaf process (2) starts\n");
+    print("leaf process (2) starts\n");
     SYSCALL(VERHOGEN, (int)&sem_endcreate[1], 0, 0);
     SYSCALL(PASSEREN, (int)&sem_blkp8, 0, 0);
 }
 
 void p8leaf3()
 {
-    printf("leaf process (3) starts\n");
+    print("leaf process (3) starts\n");
     SYSCALL(VERHOGEN, (int)&sem_endcreate[2], 0, 0);
     SYSCALL(PASSEREN, (int)&sem_blkp8, 0, 0);
 }
 
 void p8leaf4()
 {
-    printf("leaf process (4) starts\n");
+    print("leaf process (4) starts\n");
     SYSCALL(VERHOGEN, (int)&sem_endcreate[3], 0, 0);
     SYSCALL(PASSEREN, (int)&sem_blkp8, 0, 0);
 }
 
 void p9()
 {
-    printf("p9 starts\n");
+    print("p9 starts\n");
     SYSCALL(CREATEPROCESS, (int)&p10state, (int)NULL, (int)NULL); /* start p7		*/
     SYSCALL(PASSEREN, (int)&sem_blkp9, 0, 0);
 }
 
 void p10()
 {
-    printf("p10 starts\n");
+    print("p10 starts\n");
     int ppid = SYSCALL(GETPROCESSID, 1, 0, 0);
 
     if (ppid != p9pid)
     {
-        printf("Inconsistent process id for p9!\n");
+        print("Inconsistent process id for p9!\n");
         PANIC();
     }
 
     SYSCALL(TERMPROCESS, ppid, 0, 0);
 
-    printf("Error: p10 didn't die with its parent!\n");
+    print("Error: p10 didn't die with its parent!\n");
     PANIC();
 }
 
 void hp_p1()
 {
-    printf("hp_p1 starts\n");
+    print("hp_p1 starts\n");
 
     SYSCALL(TERMPROCESS, 0, 0, 0);
-    printf("Error: hp_p1 didn't die!\n");
+    print("Error: hp_p1 didn't die!\n");
     PANIC();
 }
 
 void hp_p2()
 {
-    printf("hp_p2 starts\n");
+    print("hp_p2 starts\n");
 
     for (int i = 0; i < 10; i++)
     {
@@ -791,7 +814,7 @@ void hp_p2()
     }
 
     SYSCALL(TERMPROCESS, 0, 0, 0);
-    printf("Error: hp_p2 didn't die!\n");
+    print("Error: hp_p2 didn't die!\n");
     PANIC();
 }
 
@@ -803,13 +826,13 @@ void ns_p_parent_ns()
     int *sem_child_ns = NULL;
     int pid = 0;
     int ppid = SYSCALL(GETPROCESSID, 1, 0, 0);
-    printf("ns pid in parent namespace\n");
+    print("ns pid in parent namespace\n");
 
     pid = SYSCALL(GETPROCESSID, 0, 0, 0);
 
     if (ppid == 0)
     {
-        printf("Inconsistent (parent) namespace management\n");
+        print("Inconsistent (parent) namespace management\n");
         PANIC();
     }
 
@@ -825,18 +848,18 @@ void ns_p_parent_ns()
     }
     else
     {
-        printf("ns1 wrong semaphore selected\n");
+        print("ns1 wrong semaphore selected\n");
         PANIC();
     }
 
-    printf("Locking parent ns\n");
+    print("Locking parent ns\n");
     SYSCALL(PASSEREN, (int)sem_child_ns, 0, 0);
-    printf("Unlocked parent ns\n");
+    print("Unlocked parent ns\n");
     /* Unlock parent semaphore */
     SYSCALL(VERHOGEN, (int)sem_ns, 0, 0);
 
     SYSCALL(TERMPROCESS, 0, 0, 0);
-    printf("Error: n_p_parent_ns didn't die!\n");
+    print("Error: n_p_parent_ns didn't die!\n");
     PANIC();
 }
 
@@ -846,13 +869,13 @@ void ns_p_new_ns()
     int *sem_child_ns = NULL;
     int pid = 0;
     int ppid = SYSCALL(GETPROCESSID, 1, 0, 0);
-    printf("ns pid not in parent namespace\n");
+    print("ns pid not in parent namespace\n");
 
     pid = SYSCALL(GETPROCESSID, 0, 0, 0);
 
     if (ppid != 0)
     {
-        printf("Inconsistent (parent) namespace management\n");
+        print("Inconsistent (parent) namespace management\n");
         PANIC();
     }
 
@@ -868,19 +891,19 @@ void ns_p_new_ns()
     }
     else
     {
-        printf("ns2 wrong semaphore selected\n");
+        print("ns2 wrong semaphore selected\n");
         PANIC();
     }
 
-    printf("Locking child ns\n");
+    print("Locking child ns\n");
     SYSCALL(PASSEREN, (int)sem_child_ns, 0, 0);
 
     /* Unlock parent semaphore */
-    printf("Unlocked child ns\n");
+    print("Unlocked child ns\n");
     SYSCALL(VERHOGEN, (int)sem_ns, 0, 0);
 
     SYSCALL(TERMPROCESS, 0, 0, 0);
-    printf("Error: n_p_new_ns didn't die!\n");
+    print("Error: n_p_new_ns didn't die!\n");
     PANIC();
 }
 
@@ -892,12 +915,12 @@ void p11()
     nsd_t *ns2 = NULL;
     int found[2] = {};
 
-    printf("p11 starts\n");
+    print("p11 starts\n");
 
     ns2 = allocNamespace(NS_PID);
     if (ns2 == NULL)
     {
-        printf("failed namespace management\n");
+        print("failed namespace management\n");
         PANIC();
     }
 
@@ -913,7 +936,7 @@ void p11()
     children_number = SYSCALL(GETCHILDREN, (int)NULL, 0, 0);
     if (children_number != 2)
     {
-        printf("Inconsistent GETCHILDREN namespace management 1\n");
+        print("Inconsistent GETCHILDREN namespace management 1\n");
         PANIC();
     }
 
@@ -921,7 +944,7 @@ void p11()
     children_number = SYSCALL(GETCHILDREN, (memaddr)&children_pids, NS_MAXCHILDREN, 0);
     if (children_number != 2)
     {
-        printf("Inconsistent GETCHILDREN namespace management 2\n");
+        print("Inconsistent GETCHILDREN namespace management 2\n");
         PANIC();
     }
 
@@ -937,7 +960,7 @@ void p11()
         }
         else
         {
-            printf("Inconsistent GETCHILDREN namespace management (pid return 1)\n");
+            print("Inconsistent GETCHILDREN namespace management (pid return 1)\n");
             PANIC();
         }
     }
@@ -946,12 +969,12 @@ void p11()
     {
         if (found[i] != 1)
         {
-            printf("Inconsistent GETCHILDREN namespace management (pid return 2)\n");
+            print("Inconsistent GETCHILDREN namespace management (pid return 2)\n");
             PANIC();
         }
     }
 
-    printf("p11, waiting for children\n");
+    print("p11, waiting for children\n");
     /* Unlock all childrens */
     SYSCALL(VERHOGEN, (int)&sem_l_ns1_a, 0, 0);
     SYSCALL(VERHOGEN, (int)&sem_l_ns1_b, 0, 0);
@@ -969,6 +992,6 @@ void p11()
     /* Terminate all process */
     SYSCALL(TERMPROCESS, 0, 0, 0);
 
-    printf("Error: p11 didn't die!\n");
+    print("Error: p11 didn't die!\n");
     PANIC();
 }

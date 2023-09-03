@@ -20,7 +20,18 @@ void initNamespaces() {
 };
 
 nsd_t* getNamespace(pcb_t* p, int type){
-    return p->namespaces[type];
+    // if(p == NULL){
+    //     return NULL;
+    // }
+    // return p->namespaces[type];
+    for (int i = 0; i < NS_TYPE_MAX; i++)
+    {
+        if (p->namespaces[i]->n_type == type)
+        {
+            return p->namespaces[i];
+        }
+    }
+    return NULL;
 };
 
 

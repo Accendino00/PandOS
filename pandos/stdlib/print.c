@@ -3,10 +3,13 @@
 
 #include <pandos_const.h>
 #include <pandos_types.h>
+#include <umps/cp0.h>
+#include <umps/libumps.h>
+#include <umps/arch.h>
 
 char okbuf[2048]; /* sequence of progress messages */
 char errbuf[128]; /* contains reason for failing */
-static char msgbuf[128]; /* nonrecoverable error message before shut down */
+static char msgbuf[256]; /* nonrecoverable error message before shut down */
 char *mp = okbuf;
 
 #define TRANSMITTED 5
@@ -63,17 +66,22 @@ unsigned int termprint(char *str, unsigned int term)
                     error = TRUE;
                 else
                     /* move to next char */
+                    *commandp = ACK;
                     str++;
             }
         }
         else
             /* device is not available */
             error = TRUE;
+
+        *commandp = ACK;
     }
     else
         /* wrong terminal device number */
         error = TRUE;
 
+    // termreg_t* base = (termreg_t*)TERM0ADDR;
+    // base->transm_command = ACK;
     return (!error);
 }
 
@@ -85,14 +93,14 @@ void addokbuf(char *strp)
     while ((*mp++ = *strp++) != '\0')
         ;
     mp--;
-    termprint(tstrp, 0);
+    termprint(tstrp, 1);
 }
 
 int printf(char *str, ...)
 {
     va_list vl;
     int i = 0, j = 0;
-    char buff[100], tmp[20];
+    char buff[200], tmp[20];
     va_start(vl, str);
     while (str && str[i])
     {
@@ -123,7 +131,11 @@ int printf(char *str, ...)
             }
             case 'b':
             {
+                //add padding
                 itoa(va_arg(vl, int), tmp, 2);
+                for(int i = 0; i < 16-strlen(tmp); i++)
+                    strcpy(&buff[j++], "0");
+                
                 strcpy(&buff[j], tmp);
                 j += strlen(tmp);
                 break;
@@ -133,6 +145,14 @@ int printf(char *str, ...)
                 const char* str_ = va_arg(vl, const char*);
                 strcpy(&buff[j], str_);
                 j += strlen(str_);
+                break;
+            }
+            case 'p': {
+                itoa(va_arg(vl, int), tmp, 16);
+                strcpy(&buff[j], "0x");
+                j += 2;
+                strcpy(&buff[j], tmp);
+                j += strlen(tmp);
                 break;
             }
             }
@@ -149,4 +169,9 @@ int printf(char *str, ...)
     addokbuf(buff);
     va_end(vl);
     return j;
+}
+
+inline int breakpoint()
+{
+    return 0;
 }

@@ -1,6 +1,7 @@
 #include "util.h"
 
-struct pcb_t* resetPcb(struct pcb_t* p) {
+struct pcb_t *resetPcb(struct pcb_t *p)
+{
     if (p == NULL)
         return NULL;
 
@@ -20,6 +21,7 @@ struct pcb_t* resetPcb(struct pcb_t* p) {
     p->p_s.hi = 0;
     p->p_s.lo = 0;
     p->p_supportStruct = NULL;
+    p->test = NULL;
 
     for (int i = 0; i < STATE_GPR_LEN; i++)
     {

@@ -57,4 +57,8 @@ pcb_t* headBlocked(int *semAdd);
  */
 void initASH();
 
+pcb_t *findPcb(int pid, struct list_head *list);
+
+void getBlockedProcesses();
+
 #endif

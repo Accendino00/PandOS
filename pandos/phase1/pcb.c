@@ -10,6 +10,16 @@ pcb_t* get_pcb_table() {
 }
 // PCBs allocation
 
+pcb_t* searchPcbByPid(int pid, struct list_head* list) {
+    pcb_t* p;
+    list_for_each_entry(p, list, p_list) {
+        if(p->p_pid == pid) {
+            return p;
+        }
+    }
+    return NULL;
+}
+
 void initPcbs()
 {
     /* Initialize the list */
@@ -29,6 +39,7 @@ void freePcb(struct pcb_t *p)
         return;
 
     list_safe_del(&p->p_list);
+    p->p_semAdd = NULL;
     list_add(&p->p_list, &pcbFree_h);
 }
 

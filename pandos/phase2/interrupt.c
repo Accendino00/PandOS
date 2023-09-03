@@ -1,86 +1,135 @@
 #include "interrupt.h"
-#include "print.h"
-#include "processor.h"
-#include "semaphore.h"
 
+#include <umps/libumps.h>
 #include <umps/cp0.h>
 #include <umps/arch.h>
+#include <umps/const.h>
 
-static volatile int timer_semaphore = 0;
+#include "scheduler.h"
+#include "processor.h"
+#include "ash.h"
+#include "devices.h"
+#include "memory.h"
+#include "print.h"
 
-int *get_timer_semaphore()
+inline void P(semaphore_t *s)
 {
-    return &timer_semaphore;
+    if (*s <= 0)
+    {
+        insertBlocked(s, currentProc());
+        incrementSoftBlockCount();
+    }
+    else
+    {
+        *s = 0;
+    }
 }
 
-scheduler_control_t interrupt_handler(int cause)
+inline pcb_t *V(semaphore_t *s)
 {
-    PRINT_DEBUG("Interrupt handler --> cause: %b\n", cause);
-
-    // interrupt 0: inter process communication
-    if (cause & CAUSE_IP(0))
+    if (headBlocked(s) == NULL)
     {
-        PRINT_DEBUG("Inter process communication interrupt\n");
-        return (scheduler_control_t){get_current_process(), SCH_PRESERVE}; // preserve
+        *s = 1;
+        return NULL;
     }
-
-    // interrupt 1: processor local timer
-    else if (cause & CAUSE_IP(1))
+    else
     {
-        PRINT_DEBUG("Processor local timer interrupt\n");
-        reset_plt(); // acknowledge the interrupt
-        return (scheduler_control_t){get_current_process(), SCH_ENQUEUE}; // reschedule
+        pcb_t *proc = removeBlocked(s);
+        enqueueReady(proc);
+        decrementSoftBlockCount();
+        return proc;
     }
+}
 
-    // interrupt 2: interval timer
-    else if (cause & CAUSE_IP(2))
+#define INT_LINE(line) if(getCAUSE() & CAUSE_IP(line))
+
+void interruptHandler(state_t *excState)
+{
+    excState = (state_t*)BIOSDATAPAGE;
+    int cause = excState->cause;
+
+    if (cause & CAUSE_IP(1))
     {
-        PRINT_DEBUG("Interval timer interrupt\n");
-        reset_interval_timer(); // acknowledge the interrupt
-        while (timer_semaphore != 1)
+        if (((getSTATUS() & STATUS_TE) >> STATUS_TE_BIT) == ON)
         {
-            V(&timer_semaphore);
+            setTIMER(NEVER);
+            memcpy(&currentProc()->p_s, excState, sizeof(state_t));
+            enqueueReady(currentProc());
+            schedule();
         }
-        return (scheduler_control_t){get_current_process(), SCH_PRESERVE}; // reschedule
     }
-
-    // interrupt 3: disk
-    else if (cause & CAUSE_IP(3))
+    if (cause & CAUSE_IP(2))
     {
-        PRINT_DEBUG("Disk interrupt\n");
-        return (scheduler_control_t){get_current_process(), SCH_ENQUEUE}; // reschedule
+        LDIT(100000);
+        while (headBlocked(getPseudoClockSem()) != NULL)
+        {
+            pcb_t *proc = removeBlocked(getPseudoClockSem());
+            enqueueReady(proc);
+            decrementSoftBlockCount();
+        }
+        *getPseudoClockSem() = 0;
     }
-
-    // interrupt 4: tape
-    else if (cause & CAUSE_IP(4))
+    if (cause & CAUSE_IP(3))
     {
-        PRINT_DEBUG("Tape interrupt\n");
-        return (scheduler_control_t){get_current_process(), SCH_ENQUEUE}; // reschedule
     }
-
-    // interrupt 5: network
-    else if (cause & CAUSE_IP(5))
+    if (cause & CAUSE_IP(4))
     {
-        PRINT_DEBUG("Network interrupt\n");
-        return (scheduler_control_t){get_current_process(), SCH_ENQUEUE}; // reschedule
     }
-
-    // interrupt 6: printer
-    else if (cause & CAUSE_IP(6))
+    if (cause & CAUSE_IP(5))
     {
-        PRINT_DEBUG("Printer interrupt\n");
-        return (scheduler_control_t){get_current_process(), SCH_ENQUEUE}; // reschedule
     }
-
-    // interrupt 7: terminal
-    else if (cause & CAUSE_IP(7))
+    if (cause & CAUSE_IP(6))
     {
-        PRINT_DEBUG("Terminal interrupt\n");
-        return (scheduler_control_t){get_current_process(), SCH_ENQUEUE}; // reschedule
+    }
+    if (cause & CAUSE_IP(7))
+    {
+        
+        unsigned int dev_num = 0;
+
+        // find the device number
+        unsigned int *bitmap_addr = (unsigned int *)CDEV_BITMAP_ADDR(IL_TERMINAL); // calcolated with interrupting devices bitmap
+        unsigned int bitmap = *bitmap_addr;
+        while (bitmap > 1 && dev_num < N_DEV_PER_IL)
+        {
+            ++dev_num;
+            bitmap >>= 1;
+        }
+
+        termreg_t *base = (termreg_t *)(DEV_REG_ADDR(IL_TERMINAL, dev_num));
+
+        if (base->transm_status > READY && base->transm_status != BUSY)
+        {
+            unsigned int status = base->transm_status & 0xFF;
+            base->transm_command = ACK;
+            semaphore_t *sem = getDevSem(EXT_IL_INDEX(IL_TERMINAL)*DEVPERINT + dev_num*2 + 1);
+            pcb_t *p = V(sem);
+            if (p != NULL)
+            {
+                p->p_s.reg_v0 = 0;
+                (p->test)[STATUS] = status;
+                enqueueReady(p);
+            }
+        }
+
+        if (base->recv_status > READY && base->recv_status != BUSY)
+        {
+            unsigned int status = base->recv_status & 0xFF;
+            base->recv_command = ACK;
+            semaphore_t *sem = getDevSem(EXT_IL_INDEX(IL_TERMINAL)*DEVPERINT + dev_num*2);
+
+            pcb_t *p = V(sem);
+            if (p != NULL)
+            {
+                p->p_s.reg_v0 = 0;
+                (p->test)[STATUS] = status;
+                enqueueReady(p);
+            }
+        }
     }
 
-    // error
-    PRINT_DEBUG("Error: interrupt cause not recognized\n");
-
-    return (scheduler_control_t){get_current_process(), SCH_ENQUEUE};
+    if (currentProc() == NULL)
+    {
+        schedule();
+    }
+    LDST(excState);
 }
