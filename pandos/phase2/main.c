@@ -25,15 +25,19 @@ void initKernel(memaddr pc)
     initNamespaces();
     initDevSems();
 
+
     /* Initialize the passupvector */
     passupvector_t *puv = (passupvector_t *)PASSUPVECTOR;
     puv->tlb_refill_handler = (memaddr)uTLB_RefillHandler;
     puv->tlb_refill_stackPtr = (memaddr)KERNELSTACK;
     puv->exception_handler = (memaddr)exceptionHandler;
     puv->exception_stackPtr = (memaddr)KERNELSTACK;
-
-    // Initialize the scheduler
+    
+    // Initialize the scheduler (variables and ready queue)
     initScheduler();
+    
+    // Initialize the interval timer
+    resetIntervalTimer();
 
     // Create entry point
     pcb_t *proc = allocPcb();
@@ -46,12 +50,10 @@ void initKernel(memaddr pc)
     incrementProcessCount();
     proc->p_pid = getNewPid();
 
-    proc->p_s.pc_epc = proc->p_s.reg_t9 = pc;
-    RAMTOP(proc->p_s.reg_sp);
-    // interrupts on, timer on, all interrupt lines on
+    proc->p_s.pc_epc = proc->p_s.reg_t9 = pc;   // We set the entry point
+    RAMTOP(proc->p_s.reg_sp);                   // We set the stack pointer
+    // We set the status to: interrupts on, timer on, all interrupt lines on
     proc->p_s.status = ( IEPON | IMON | TEBITON);
-    resetIntervalTimer();
-    resetPLT();
 
     PRINT_DEBUG("Kernel initialized!\n");
 }
@@ -59,6 +61,6 @@ void initKernel(memaddr pc)
 /* Kernel entry point*/
 int main()
 {
-    initKernel((memaddr)test); // Initialize the kernel
+    initKernel((memaddr)test);  // Initialize the kernel
     schedule();                 // Call the scheduler
 }

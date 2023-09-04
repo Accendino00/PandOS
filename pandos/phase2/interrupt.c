@@ -48,7 +48,9 @@ void interruptHandler(state_t *excState)
     excState = (state_t*)BIOSDATAPAGE;
     int cause = excState->cause;
 
-    if (cause & CAUSE_IP(1))
+    // Since we don't need it, we skip inter-processor interrupts (CAUSE_IP(0)
+
+    if (cause & CAUSE_IP(1))    // Processor Local Timer
     {
         if (((getSTATUS() & STATUS_TE) >> STATUS_TE_BIT) == ON)
         {
@@ -58,9 +60,9 @@ void interruptHandler(state_t *excState)
             schedule();
         }
     }
-    if (cause & CAUSE_IP(2))
+    if (cause & CAUSE_IP(2))    // Interval Timer (Bus)
     {
-        LDIT(100000);
+        LDIT(100000); // ACK
         while (headBlocked(getPseudoClockSem()) != NULL)
         {
             pcb_t *proc = removeBlocked(getPseudoClockSem());
@@ -69,24 +71,56 @@ void interruptHandler(state_t *excState)
         }
         *getPseudoClockSem() = 0;
     }
-    if (cause & CAUSE_IP(3))
+    if (cause & CAUSE_IP(3))    // Disk Devices
     {
     }
-    if (cause & CAUSE_IP(4))
+    if (cause & CAUSE_IP(4))    // Flash Devices
     {
     }
-    if (cause & CAUSE_IP(5))
+    if (cause & CAUSE_IP(5))    // Network (Ethernet) Devices
     {
     }
-    if (cause & CAUSE_IP(6))
+    if (cause & CAUSE_IP(6))    // Printer Devices
     {
-    }
-    if (cause & CAUSE_IP(7))
-    {
-        
+        // #TODO - trasformarla in funzione, in quanto la ricerca è copia incollata per ognuna, e vedere cosa ritornare in v0
+
+
         unsigned int dev_num = 0;
 
-        // find the device number
+        // Find the device number
+        unsigned int *bitmap_addr = (unsigned int *)CDEV_BITMAP_ADDR(IL_PRINTER); // calcolated with interrupting devices bitmap
+        unsigned int bitmap = *bitmap_addr;
+        while (bitmap > 1 && dev_num < N_DEV_PER_IL)
+        {
+            ++dev_num;
+            bitmap >>= 1;
+        }
+
+        // We get the device's register
+        dtpreg_t *base = (dtpreg_t *)(DEV_REG_ADDR(IL_PRINTER, dev_num));
+
+        // We get the status of the device
+        unsigned int status = base->status;
+
+        // ACK the interrupt
+        base->command = ACK;
+
+        // V the semaphore of the printer device
+        semaphore_t *sem = getDevSem(EXT_IL_INDEX(IL_PRINTER)*DEVPERINT + dev_num);
+        pcb_t *p = V(sem);
+        if (p != NULL) // If the process still exists, we return 0 and the status
+        {
+            p->p_s.reg_v0 = 0;
+            (p->p_savedDeviceStatus)[STATUS] = base->status;
+            enqueueReady(p);
+        }
+
+    }
+    if (cause & CAUSE_IP(7))    // Terminal Devices
+    {
+        unsigned int dev_num = 0;
+
+        // Find the device number
         unsigned int *bitmap_addr = (unsigned int *)CDEV_BITMAP_ADDR(IL_TERMINAL); // calcolated with interrupting devices bitmap
         unsigned int bitmap = *bitmap_addr;
         while (bitmap > 1 && dev_num < N_DEV_PER_IL)
@@ -95,8 +129,11 @@ void interruptHandler(state_t *excState)
             bitmap >>= 1;
         }
 
+        // We get the device registers
         termreg_t *base = (termreg_t *)(DEV_REG_ADDR(IL_TERMINAL, dev_num));
 
+        // If we have transmission or reception, we ACK and V the semaphore
+        // We prioritize transmission over reception
         if (base->transm_status > READY && base->transm_status != BUSY)
         {
             unsigned int status = base->transm_status & 0xFF;

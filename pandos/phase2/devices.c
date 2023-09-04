@@ -5,6 +5,7 @@
 #include <umps/arch.h>
 #include <umps/const.h>
 
+// We define the semaphore of the devices as an array of semaphores.
 #define SEM_NUM ((DEVINTNUM + 1) * DEVPERINT)
 HIDDEN semaphore_t dev_sems[SEM_NUM];
 HIDDEN semaphore_t pseudo_clock_sem;

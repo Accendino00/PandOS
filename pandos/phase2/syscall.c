@@ -62,9 +62,14 @@ static int createProcess(state_t *state, support_t *supportStruct, nsd_t *nsd)
 
 /**
  * @brief Helper function for terminateProcess.
+ * 
+ * @param p The process to terminate.
+ * 
+ * @note It recursively terminates all the children of the given process.
  */
 static void __terminateProcess(pcb_t *p)
 {
+    // Recursive part of the function, which terminates all the children of the given process
     pcb_t *child;
 
     while ((child = removeChild(p)) != NULL)
@@ -73,7 +78,11 @@ static void __terminateProcess(pcb_t *p)
         __terminateProcess(child);
     }
 
-    bool isSoftBlocked = ((memaddr)p->p_semAdd >= (memaddr)getDevSem(0) && (memaddr)p->p_semAdd <= (memaddr)getDevSem(47)) || (memaddr)p->p_semAdd == (memaddr)getPseudoClockSem();
+    // If the process is soft blocked, which means it is waiting for a device or 
+    // the pseudo clock, then we decrement the soft block count since the process is being terminated
+    bool isSoftBlocked = 
+            ((memaddr)p->p_semAdd >= (memaddr)getDevSem(0) && (memaddr)p->p_semAdd <= (memaddr)getDevSem(47)) 
+        ||  (memaddr)p->p_semAdd == (memaddr)getPseudoClockSem();
 
     if (isSoftBlocked)
     {
@@ -86,6 +95,11 @@ static void __terminateProcess(pcb_t *p)
     decrementProcessCount();
 }
 
+/**
+ * @brief Handles the TERMPROCESS syscall.
+ * 
+ * @param p the process to terminate.
+ */
 void terminateProcess(pcb_t *p)
 {
     outChild(p);
@@ -152,38 +166,51 @@ static int verhogen(semaphore_t *sem)
  *
  * @param cmdAddr The address of the device register.
  * @param cmdValues The values to write to the device register.
+ *                  Array of 2 for terminals, 4 for other devices.
  *
  * @note The status register of the device is copied back into cmdValues after the operation.
  * @note The return value of the operation is handled by the interrupt handler.
  */
 static void doIO(unsigned int *cmdAddr, unsigned int *cmdValues)
 {
+    // We save the device status in the process struct
     currentProc()->p_savedDeviceStatus = cmdValues;
 
+    // We get the line of the device (the interrupt line, it indicates the type of device)
     int int_line = ((memaddr)cmdAddr - (memaddr)DEV_REG_START) / (DEV_REG_SIZE * DEVPERINT) + DEV_IL_START;
+    // If we have a terminal, then we consider twice the amout of devices per interrupt line, since there is input and output
     int temp = (int_line == IL_TERMINAL ? DEVPERINT : DEVPERINT * 2);
+    // We get the number of the device
     int dev_num = (int)((int)cmdAddr - (int)DEV_REG_ADDR(int_line, 0)) / temp;
+    // We get the index of the device in the device semaphores array
     int dev_index = EXT_IL_INDEX(int_line) * DEVPERINT + dev_num;
 
+
+    // If we have a terminal, we need to check if we are reading or writing
+    // Because we need to change the "base" address based on that.
     if (int_line == IL_TERMINAL)
     {
         termreg_t *base;
-        if (dev_index % 2 != 0)
+        if (dev_index % 2 != 0) // If we write
         {
+            // cmdAddr points to the transmit register of the terminal, whilst
+            // we need to get the beginning of the device register
             base = (termreg_t *)((int)cmdAddr - (DEV_REG_SIZE) / 2);
             base->transm_command = cmdValues[COMMAND];
         }
-        else
+        else                    // If we read
         {
             base = (termreg_t *)cmdAddr;
             base->recv_command = cmdValues[COMMAND];
         }
-    } else {
+    } else {                    // For all other devices
         dtpreg_t *base = (dtpreg_t *)cmdAddr;
         base->command = cmdValues[COMMAND];
         base->data0 = cmdValues[DATA0];
         base->data1 = cmdValues[DATA1];
     }
+
+    // We P the semaphore of the device
     semaphore_t *sem = getDevSem(dev_index);
     P(sem);
 }
@@ -243,7 +270,12 @@ static int getChildren(int* children, int size) {
 
 void syscallHandler(state_t *excState)
 {
+    // We increment the PC to not end up in a loop of syscalls
     excState->pc_epc += WORDLEN;
+
+
+    // We check if we are in user mode, and if so, we use the passUpOrDie function,
+    // we simulate a Program Trap exception by setting the cause register to RI (Reserved Instruction)
     if ((getSTATUS() & STATUS_KUp) >> STATUS_KUp_BIT == ON)
     {
         PRINT_DEBUG("Syscall called in user mode: ");
@@ -254,82 +286,86 @@ void syscallHandler(state_t *excState)
     {
         switch (excState->reg_a0)
         {
-        case CREATEPROCESS:
-        {
-            state_t *state = FIRST_PARAM(state_t *);
-            support_t *supportStruct = SECOND_PARAM(support_t *);
-            nsd_t *nsd = THIRD_PARAM(nsd_t *);
-
-            int pid = createProcess(state, supportStruct, nsd);
-            RETURN_SYS_VALUE(pid, int);
-            break;
-        }
-        case TERMPROCESS:
-        {
-            int pid = FIRST_PARAM(int);
-            terminateProcess(pid == 0 ? currentProc() : findPcb(pid, getReadyQueue()));
-            break;
-        }
-        case PASSEREN:
-        {
-            if (passeren(FIRST_PARAM(semaphore_t *)))
+            case CREATEPROCESS:     // SYS 1
             {
+                state_t *state = FIRST_PARAM(state_t *);
+                support_t *supportStruct = SECOND_PARAM(support_t *);
+                nsd_t *nsd = THIRD_PARAM(nsd_t *);
+
+                int pid = createProcess(state, supportStruct, nsd);
+                RETURN_SYS_VALUE(pid, int);
+                break;
+            }
+            case TERMPROCESS:       // SYS 2
+            {
+                int pid = FIRST_PARAM(int);
+                terminateProcess(pid == 0 ? currentProc() : findPcb(pid, getReadyQueue()));
+                break;
+            }
+            case PASSEREN:          // SYS 3 - (can be blocking)
+            {
+                if (passeren(FIRST_PARAM(semaphore_t *)))
+                {
+                    // If the operation was blocking, we call the scheduler
+                    memcpy(&currentProc()->p_s, excState, sizeof(state_t));
+                    schedule();
+                }
+                break;
+            }
+            case VERHOGEN:          // SYS 4
+            {
+                if (verhogen(FIRST_PARAM(semaphore_t *)))
+                {
+                    // If the operation was blocking, we call the scheduler
+                    memcpy(&currentProc()->p_s, excState, sizeof(state_t));
+                    schedule();
+                }
+                break;
+            }
+            case DOIO:              // SYS 5 - (blocking)
+            {
+                unsigned int *cmdAddr = FIRST_PARAM(unsigned int *);
+                unsigned int *cmdValues = SECOND_PARAM(unsigned int *);
+
+                doIO(cmdAddr, cmdValues);
                 memcpy(&currentProc()->p_s, excState, sizeof(state_t));
                 schedule();
+                break;
             }
-            break;
-        }
-        case VERHOGEN:
-        {
-            if (verhogen(FIRST_PARAM(semaphore_t *)))
-            {
+            case GETTIME:           // SYS 6
+                RETURN_SYS_VALUE(currentProc()->p_time, unsigned int);
+                break;
+            case CLOCKWAIT:         // SYS 7 - (blocking)
+                P(getPseudoClockSem());
                 memcpy(&currentProc()->p_s, excState, sizeof(state_t));
                 schedule();
+                break;
+            case GETSUPPORTPTR:     // SYS 8
+                RETURN_SYS_VALUE(currentProc()->p_supportStruct, support_t *);
+                break;
+            case GETPROCESSID:      // SYS 9
+            {
+                int pid = getProcessID(FIRST_PARAM(int));
+                RETURN_SYS_VALUE(pid, int);
+                break;
             }
-            break;
-        }
-        case DOIO:
-        {
-            unsigned int *cmdAddr = FIRST_PARAM(unsigned int *);
-            unsigned int *cmdValues = SECOND_PARAM(unsigned int *);
+            case GETCHILDREN:       // SYS 10
+            {
+                int *children = FIRST_PARAM(int *);
+                int size = SECOND_PARAM(int);
 
-            doIO(cmdAddr, cmdValues);
-            memcpy(&currentProc()->p_s, excState, sizeof(state_t));
-            schedule();
-            break;
-        }
-        case GETTIME:
-            RETURN_SYS_VALUE(currentProc()->p_time, unsigned int);
-            break;
-        case CLOCKWAIT:
-            P(getPseudoClockSem());
-            memcpy(&currentProc()->p_s, excState, sizeof(state_t));
-            schedule();
-            break;
-        case GETSUPPORTPTR:
-            RETURN_SYS_VALUE(currentProc()->p_supportStruct, support_t *);
-            break;
-        case GETPROCESSID:
-        {
-            int pid = getProcessID(FIRST_PARAM(int));
-            RETURN_SYS_VALUE(pid, int);
-            break;
-        }
-        case GETCHILDREN:
-        {
-            int *children = FIRST_PARAM(int *);
-            int size = SECOND_PARAM(int);
-
-            int retVal = getChildren(children, size);
-            RETURN_SYS_VALUE(retVal, int);
-            break;
-        }
-        default:
-            PRINT_DEBUG("Unknown syscall (%d): ", excState->reg_a0);
-            passUpOrDie(GENERALEXCEPT);
-            break;
+                int retVal = getChildren(children, size);
+                RETURN_SYS_VALUE(retVal, int);
+                break;
+            }
+            default:
+                PRINT_DEBUG("Unknown syscall (%d): ", excState->reg_a0);
+                passUpOrDie(GENERALEXCEPT);
+                break;
         }
 
+        // If we didn't call the scheduler while handling the SYSCALL, we restore 
+        // the state of the process which threw the SYSCALL exception.
         LDST(excState);
     }
 }

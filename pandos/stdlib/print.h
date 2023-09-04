@@ -1,6 +1,10 @@
 #ifndef PRINT_H
 #define PRINT_H
 
+// Contains useful debug functions
+// If DEBUG is defined, the debug functions are enabled
+// Otherwise, they are disabled and substituted with ";" (empty statement) 
+
 #define DEBUG
 
 extern int breakpoint();

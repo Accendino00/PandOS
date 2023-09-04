@@ -27,35 +27,45 @@ void initScheduler() {
     current_active_process = NULL;
     pid_counter = 1;
     STCK(start_time);
-    resetIntervalTimer();
-    resetPLT();
     mkEmptyProcQ(&ready_queue);
 }
 
 void schedule() {
+    // Reset the current active process to none
+    // We have inserted it in the ready queue before calling this function
     current_active_process = NULL;
+
+
+    // If the ready queue is empty, we have to check different conditions
     if(emptyProcQ(&ready_queue)) {
-        if(process_count == 0)
+        // If there are no processes, we halt the system
+        if(process_count == 0) {
             HALT();
+        }
+        // If there are processes but they are all blocked, we wait for an interrupt
         else if (process_count > 0 && soft_block_count > 0){
-            // interrupts on
+            // We enable interrupts 
+            // (and we disable the timer since the next interrupt musn't be a timer interrupt)
             setSTATUS(( IECON | IMON) & (~TEBITON));
             WAIT();
         }
+        // If this is true, we have a deadlock
         else if(process_count > 0 && soft_block_count == 0){
             printf("Blocked processes: \n");
             getBlockedProcesses();
 
             panic("Deadlock detected! Scheduler: \n\tProcess count: %d\n\tBlocked processes: %d\n\tProcesses in ready queue: %d\n", process_count, soft_block_count, list_size(&ready_queue));
-        }
-            
+        }            
     }
 
+    // We set the new process as the current active process,
+    // reset the process local timer and load the state of the new process
     current_active_process = removeProcQ(&ready_queue);
     resetPLT();
     STCK(start_time);
     LDST(&(current_active_process->p_s));
 }
+
 
 inline unsigned int getNewPid() {
     return pid_counter++;
