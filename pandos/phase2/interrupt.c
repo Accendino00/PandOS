@@ -12,6 +12,58 @@
 #include "memory.h"
 #include "print.h"
 
+/**
+ * @brief Macro that manages the device interrupt.
+ * 
+ * @param TYPE indicates the name of the interrupt line. 
+ * It can be "IL_DISK", "IL_PRINTER",...
+ * @param REGISTER TYPE is the type of "base", the struct 
+ * type of the register of the device. It can be "dtpreg_t",
+ * @param "..." is the list of the valid status of the device.
+ * If the status isn't one of these values, we return -1 in v0.
+ */
+#define MANAGEDEVICE(TYPE,REGISTERTYPE,...) \
+    unsigned int dev_num = 0; \
+    \
+    /* Find the device number */ \
+    unsigned int *bitmap_addr = (unsigned int *)CDEV_BITMAP_ADDR(TYPE); \
+    unsigned int bitmap = *bitmap_addr; \
+    while (bitmap > 1 && dev_num < N_DEV_PER_IL) \
+    { \
+        ++dev_num; \
+        bitmap >>= 1; \
+    } \
+    \
+    /* We get the device's register */ \
+    REGISTERTYPE *base = (REGISTERTYPE *)(DEV_REG_ADDR(TYPE, dev_num)); \
+    \
+    /* We get the status of the device */ \
+    unsigned int status = base->status; \
+    /*We search if the status is within the "..." ints*/\
+    int v0_return = -1;\
+    int valid_status[] = {__VA_ARGS__};\
+    for(int i = 0; i < sizeof(valid_status)/sizeof(int); i++)\
+    {\
+        if(status == valid_status[i])\
+        {\
+            v0_return = 0;\
+            break;\
+        }\
+    }\
+    \
+    /* ACK the interrupt */ \
+    base->command = ACK; \
+    \
+    /* V the semaphore of the printer device */ \
+    semaphore_t *sem = getDevSem(EXT_IL_INDEX(TYPE)*DEVPERINT + dev_num); \
+    pcb_t *p = V(sem); \
+    if (p != NULL) /* If the process still exists, we return 0 and the status */ \
+    { \
+        p->p_s.reg_v0 = v0_return; \
+        (p->p_savedDeviceStatus)[STATUS] = status; \
+        enqueueReady(p); \
+    }
+
 inline void P(semaphore_t *s)
 {
     if (*s <= 0)
@@ -50,6 +102,9 @@ void interruptHandler(state_t *excState)
 
     // Since we don't need it, we skip inter-processor interrupts (CAUSE_IP(0)
 
+    // We use "if"s, so if we have two interrupts for the same process, only
+    // the least important one's return value will be written at v0.
+
     if (cause & CAUSE_IP(1))    // Processor Local Timer
     {
         if (((getSTATUS() & STATUS_TE) >> STATUS_TE_BIT) == ON)
@@ -71,53 +126,27 @@ void interruptHandler(state_t *excState)
         }
         *getPseudoClockSem() = 0;
     }
-    if (cause & CAUSE_IP(3))    // Disk Devices
+    if (cause & CAUSE_IP(DISKINT))     // Disk Devices - 3
     {
+        MANAGEDEVICE(IL_DISK, dtpreg_t, 0,1,2,3,4,5,6);
     }
-    if (cause & CAUSE_IP(4))    // Flash Devices
+    if (cause & CAUSE_IP(FLASHINT))    // Flash Devices - 4
     {
+        MANAGEDEVICE(IL_FLASH, dtpreg_t, 0,1,2,3,4,5,6,7);
     }
-    if (cause & CAUSE_IP(5))    // Network (Ethernet) Devices
+    if (cause & CAUSE_IP(NETWINT))     // Network (Ethernet) Devices - 5
     {
+        MANAGEDEVICE(IL_ETHERNET, dtpreg_t, 0,1,2,3,4,5,6,7,128);
     }
-    if (cause & CAUSE_IP(6))    // Printer Devices
+    if (cause & CAUSE_IP(PRNTINT))    // Printer Devices - 6
     {
-        // #TODO - trasformarla in funzione, in quanto la ricerca è copia incollata per ognuna, e vedere cosa ritornare in v0
-
-
-        unsigned int dev_num = 0;
-
-        // Find the device number
-        unsigned int *bitmap_addr = (unsigned int *)CDEV_BITMAP_ADDR(IL_PRINTER); // calcolated with interrupting devices bitmap
-        unsigned int bitmap = *bitmap_addr;
-        while (bitmap > 1 && dev_num < N_DEV_PER_IL)
-        {
-            ++dev_num;
-            bitmap >>= 1;
-        }
-
-        // We get the device's register
-        dtpreg_t *base = (dtpreg_t *)(DEV_REG_ADDR(IL_PRINTER, dev_num));
-
-        // We get the status of the device
-        unsigned int status = base->status;
-
-        // ACK the interrupt
-        base->command = ACK;
-
-        // V the semaphore of the printer device
-        semaphore_t *sem = getDevSem(EXT_IL_INDEX(IL_PRINTER)*DEVPERINT + dev_num);
-        pcb_t *p = V(sem);
-        if (p != NULL) // If the process still exists, we return 0 and the status
-        {
-            p->p_s.reg_v0 = 0;
-            (p->p_savedDeviceStatus)[STATUS] = base->status;
-            enqueueReady(p);
-        }
-
+        MANAGEDEVICE(IL_PRINTER, dtpreg_t, 0,1,2,3,4);
     }
-    if (cause & CAUSE_IP(7))    // Terminal Devices
+    if (cause & CAUSE_IP(TERMINT))    // Terminal Devices - 7
     {
+        // Since we need to treat terminals a bit differently than other devices,
+        // we don't use the macro in this function.
+
         unsigned int dev_num = 0;
 
         // Find the device number
@@ -146,7 +175,12 @@ void interruptHandler(state_t *excState)
                 (p->p_savedDeviceStatus)[STATUS] = status;
                 enqueueReady(p);
             }
-        }
+        }/* else if(!(base->transm_status >= 0 && base->transm_status <= 5)) // Ovvero non è nel range
+            // ACK e si rimuove il blocco del semaforo
+            // Si mette in v0 il valore -1
+
+            #TODO - verificare se questa può andare bene come soluzione
+        */
 
         if (base->recv_status > READY && base->recv_status != BUSY)
         {
