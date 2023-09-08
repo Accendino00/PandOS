@@ -93,29 +93,25 @@ inline pcb_t *V(semaphore_t *s)
     }
 }
 
-#define INT_LINE(line) if(getCAUSE() & CAUSE_IP(line))
+#define INT_LINE(line) getCAUSE() & CAUSE_IP(line)
 
 void interruptHandler(state_t *excState)
 {
-    excState = (state_t*)BIOSDATAPAGE;
-    int cause = excState->cause;
+    // Since we don't need it, we skip inter-processor interrupts (CAUSE_IP(0))
 
-    // Since we don't need it, we skip inter-processor interrupts (CAUSE_IP(0)
+    // We use "if"s, so that if we have more than one interrupt pending, we handle them all
 
-    // We use "if"s, so if we have two interrupts for the same process, only
-    // the least important one's return value will be written at v0.
-
-    if (cause & CAUSE_IP(1))    // Processor Local Timer
+    if (INT_LINE(1))    // Processor Local Timer
     {
         if (((getSTATUS() & STATUS_TE) >> STATUS_TE_BIT) == ON)
         {
             setTIMER(NEVER);
             memcpy(&currentProc()->p_s, excState, sizeof(state_t));
             enqueueReady(currentProc());
-            schedule();
         }
     }
-    if (cause & CAUSE_IP(2))    // Interval Timer (Bus)
+    
+    if (INT_LINE(2))    // Interval Timer (Bus)
     {
         LDIT(100000); // ACK
         while (headBlocked(getPseudoClockSem()) != NULL)
@@ -126,23 +122,23 @@ void interruptHandler(state_t *excState)
         }
         *getPseudoClockSem() = 0;
     }
-    if (cause & CAUSE_IP(DISKINT))     // Disk Devices - 3
+    if (INT_LINE(DISKINT))     // Disk Devices - 3
     {
         MANAGEDEVICE(IL_DISK, dtpreg_t, 0,1,2,3,4,5,6);
     }
-    if (cause & CAUSE_IP(FLASHINT))    // Flash Devices - 4
+    if (INT_LINE(FLASHINT))    // Flash Devices - 4
     {
         MANAGEDEVICE(IL_FLASH, dtpreg_t, 0,1,2,3,4,5,6,7);
     }
-    if (cause & CAUSE_IP(NETWINT))     // Network (Ethernet) Devices - 5
+    if (INT_LINE(NETWINT))     // Network (Ethernet) Devices - 5
     {
         MANAGEDEVICE(IL_ETHERNET, dtpreg_t, 0,1,2,3,4,5,6,7,128);
     }
-    if (cause & CAUSE_IP(PRNTINT))    // Printer Devices - 6
+    if (INT_LINE(PRNTINT))    // Printer Devices - 6
     {
         MANAGEDEVICE(IL_PRINTER, dtpreg_t, 0,1,2,3,4);
     }
-    if (cause & CAUSE_IP(TERMINT))    // Terminal Devices - 7
+    if (INT_LINE(TERMINT))    // Terminal Devices - 7
     {
         // Since we need to treat terminals a bit differently than other devices,
         // we don't use the macro in this function.

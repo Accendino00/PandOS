@@ -9,7 +9,7 @@
 
 char okbuf[2048]; /* sequence of progress messages */
 char errbuf[128]; /* contains reason for failing */
-static char msgbuf[256]; /* nonrecoverable error message before shut down */
+HIDDEN char msgbuf[256]; /* nonrecoverable error message before shut down */
 char *mp = okbuf;
 
 #define TRANSMITTED 5

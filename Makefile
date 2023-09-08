@@ -6,7 +6,7 @@ LD = $(XT_PRG_PREFIX)ld
 
 SRC_DIR = pandos
 BUILD_DIR = build
-KERNEL_BUILD = kernel
+KERNEL_BUILD = machine
 
 ALL_FILES := $(wildcard $(SRC_DIR)/**/**/*.c) $(wildcard $(SRC_DIR)/**/*.c) $(wildcard $(SRC_DIR)/*.c)
 ALL_HEADER_FILES := $(wildcard $(SRC_DIR)/**/**/*.h) $(wildcard $(SRC_DIR)/**/*.h) $(wildcard $(SRC_DIR)/*.h)
@@ -41,12 +41,13 @@ VPATH = $(UMPS3_DATA_DIR)
 .PHONY : all clean
 
 all : kernel.core.umps
+	mv kernel.core.umps kernel.stab.umps kernel $(KERNEL_BUILD)
 
 remake: clean all run
 	@echo "Restarting build..."
 
-run: all
-	umps3 Test
+run:
+	umps3 $(KERNEL_BUILD)/Test
 
 kernel : $(ALL_OBJ_FILES) crtso.o libumps.o 
 	$(LD) -o $@ $^ $(LDFLAGS)

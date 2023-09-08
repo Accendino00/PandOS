@@ -6,9 +6,9 @@
 #include "devices.h"
 
 /** Declaration of the lists */
-static volatile struct list_head semdFree_h;
-static volatile struct semd_t semdFree_table[MAXPROC];
-static volatile DEFINE_HASHTABLE(semd_h, 12);
+HIDDEN volatile struct list_head semdFree_h;
+HIDDEN volatile struct semd_t semdFree_table[MAXPROC];
+HIDDEN volatile DEFINE_HASHTABLE(semd_h, 12);
 
 int insertBlocked(int *semAdd, pcb_t *p)
 {
@@ -201,10 +201,13 @@ void getBlockedProcesses()
             {
                 printf("%d\n", p->p_pid);
             }
-        }else{
-        list_for_each_entry(p, &it->s_procq, p_list)
+        }
+        else
         {
-            printf("Process %d is blocked on %p\n", p->p_pid, it->s_key);
-        }}
+            list_for_each_entry(p, &it->s_procq, p_list)
+            {
+                printf("Process %d is blocked on %p\n", p->p_pid, it->s_key);
+            }
+        }
     }
 }

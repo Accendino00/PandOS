@@ -9,11 +9,11 @@
 #define TIMESLICE 5000
 #define ITINTERVAL 100000
 
-static inline void resetPLT() {
+HIDDEN inline void resetPLT() {
     setTIMER(TIMESLICE);
 }
 
-static inline void resetIntervalTimer() {
+HIDDEN inline void resetIntervalTimer() {
     LDIT(ITINTERVAL);
 }
 

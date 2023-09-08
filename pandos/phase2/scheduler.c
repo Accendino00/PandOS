@@ -73,6 +73,8 @@ inline unsigned int getNewPid() {
 
 inline void enqueueReady(pcb_t* proc) {
     insertProcQ(&ready_queue, proc);
+    if(proc == current_active_process)
+        current_active_process = NULL;
 }
 
 inline void incrementProcessCount() {

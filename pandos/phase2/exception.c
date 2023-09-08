@@ -50,6 +50,9 @@ void exceptionHandler()
         passUpOrDie(GENERALEXCEPT);
         break;
     }
+
+    // Just in case. However, this should never be reached.
+    LDST(excState);
 }
 
 

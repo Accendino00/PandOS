@@ -17,6 +17,11 @@
 extern void uTLB_RefillHandler();
 extern void test();
 
+/**
+ * @brief This function initializes the kernel.
+ * 
+ * @param pc The entry point of the kernel.
+ */
 void initKernel(memaddr pc)
 {
     /* Initialize phase1 data structures */

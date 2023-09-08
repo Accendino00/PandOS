@@ -4,7 +4,7 @@
 Una volta scaricata la cartella eseguire il comando:
 
 ```shell
-make
+make all
 ```
 
 Che in automatico compilerà tutto il necessario.
@@ -13,21 +13,17 @@ Che in automatico compilerà tutto il necessario.
 
 ## Come testare
 
-Dopo aver compilato, potete testare aprendo "umps3" dal terminale dalla stessa cartella di dove avete usato il comando presente sopra, usando il comando:
+Dopo aver compilato, potete testare eseguendo il comando:
 
 ```shell
-umps3
+make run
 ```
-
-Una volta che lo avete aperto, vi basterà creare una nuova configurazione di macchina all'interno della stessa cartella e poi premere il tasto verde che si trova in alto a sinistra.
-
-Potete vedere il risultato dell'esecuzione premendo ```Alt+0``` oppure andando su ```Windows > Terminal 0``` nella barra in alto.
 
 &nbsp;
 
 ## Come vedere la documentazione
 
-La documentazione del nostro codice può essere vista direttamente dai vari ```.h```, con commenti specifici della funzione di una funzione presenti nel ```.c```.
+La documentazione del nostro codice può essere vista direttamente dai vari ```.h```, con commenti specifici relativi ad una funzione, oltre ad altre informazioni presenti nel ```.c```.
 
 Se invece si desiderasse vedere unicamente la descrizione dello scopo della varie funzioni, si può generare una pagina web che mostra la documentazione. Per fare questo, eseguire i seguenti comandi:
 

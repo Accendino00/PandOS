@@ -1,9 +1,9 @@
 #include "ns.h"
 #include "util.h"
 
-static volatile nsd_t PID_nsd[MAXPROC];
-static volatile struct list_head PID_nsFree_h;
-static volatile struct list_head PID_nsList_h;
+HIDDEN volatile nsd_t PID_nsd[MAXPROC];
+HIDDEN volatile struct list_head PID_nsFree_h;
+HIDDEN volatile struct list_head PID_nsList_h;
 
 
 void initNamespaces() {
