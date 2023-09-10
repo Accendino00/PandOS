@@ -12,6 +12,7 @@
 #include "memory.h"
 #include "print.h"
 
+
 /**
  * @brief Macro that manages the device interrupt.
  * 
@@ -64,6 +65,29 @@
         enqueueReady(p); \
     }
 
+/**
+ * @brief Calculates the device number of the interrupting device.
+ * 
+ * @param line The interrupt line.
+ * 
+ * @return The device number of the interrupting device.
+*/
+static inline int getInterruptingDevice(unsigned int line) {
+    unsigned int dev_num = 0;
+
+    // Find the device number
+    unsigned int *bitmap_addr = (unsigned int *)CDEV_BITMAP_ADDR(line); // calcolated with interrupting devices bitmap
+    unsigned int bitmap = *bitmap_addr;
+    while (bitmap > 1 && dev_num < N_DEV_PER_IL)
+    {
+        ++dev_num;
+        bitmap >>= 1;
+    }
+
+    return dev_num;
+}
+
+
 inline void P(semaphore_t *s)
 {
     if (*s <= 0)
@@ -103,7 +127,8 @@ void interruptHandler(state_t *excState)
 
     if (INT_LINE(1))    // Processor Local Timer
     {
-        if (((getSTATUS() & STATUS_TE) >> STATUS_TE_BIT) == ON)
+        // If the TE bit is set, we handle the interrupt
+        if (((getSTATUS() & STATUS_TE) >> STATUS_TE_BIT))
         {
             setTIMER(NEVER);
             memcpy(&currentProc()->p_s, excState, sizeof(state_t));
@@ -143,16 +168,7 @@ void interruptHandler(state_t *excState)
         // Since we need to treat terminals a bit differently than other devices,
         // we don't use the macro in this function.
 
-        unsigned int dev_num = 0;
-
-        // Find the device number
-        unsigned int *bitmap_addr = (unsigned int *)CDEV_BITMAP_ADDR(IL_TERMINAL); // calcolated with interrupting devices bitmap
-        unsigned int bitmap = *bitmap_addr;
-        while (bitmap > 1 && dev_num < N_DEV_PER_IL)
-        {
-            ++dev_num;
-            bitmap >>= 1;
-        }
+        unsigned int dev_num = getInterruptingDevice(IL_TERMINAL);
 
         // We get the device registers
         termreg_t *base = (termreg_t *)(DEV_REG_ADDR(IL_TERMINAL, dev_num));

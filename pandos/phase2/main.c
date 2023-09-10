@@ -30,7 +30,6 @@ void initKernel(memaddr pc)
     initNamespaces();
     initDevSems();
 
-
     /* Initialize the passupvector */
     passupvector_t *puv = (passupvector_t *)PASSUPVECTOR;
     puv->tlb_refill_handler = (memaddr)uTLB_RefillHandler;

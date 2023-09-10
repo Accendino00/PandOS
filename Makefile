@@ -40,6 +40,10 @@ VPATH = $(UMPS3_DATA_DIR)
 
 .PHONY : all clean
 
+debug: CFLAGS += -DDEBUG
+debug: all
+	
+
 all : kernel.core.umps
 	mv kernel.core.umps kernel.stab.umps kernel $(KERNEL_BUILD)
 

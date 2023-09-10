@@ -5,8 +5,6 @@
 // If DEBUG is defined, the debug functions are enabled
 // Otherwise, they are disabled and substituted with ";" (empty statement) 
 
-#define DEBUG
-
 extern int breakpoint();
 
 #ifdef DEBUG
