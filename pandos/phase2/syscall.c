@@ -177,12 +177,22 @@ HIDDEN void doIO(unsigned int *cmdAddr, unsigned int *cmdValues)
 
     // We get the line of the device (the interrupt line, it indicates the type of device)
     int int_line = ((memaddr)cmdAddr - (memaddr)DEV_REG_START) / (DEV_REG_SIZE * DEVPERINT) + DEV_IL_START;
-    // If we have a terminal, then we consider twice the amout of devices per interrupt line, since there is input and output
-    int temp = (int_line == IL_TERMINAL ? DEVPERINT : DEVPERINT * 2);
+    // If we have a terminal, then we consider twice the amount of devices per interrupt line, since there is input and output
+    int temp = (int_line == IL_TERMINAL ? DEVPERINT : DEVPERINT*2);
     // We get the number of the device
     int dev_num = (int)((int)cmdAddr - (int)DEV_REG_ADDR(int_line, 0)) / temp;
     // We get the index of the device in the device semaphores array
     int dev_index = EXT_IL_INDEX(int_line) * DEVPERINT + dev_num;
+
+    // We get the installed device bitmap
+    unsigned int *ibitmap = (unsigned int *)IDEV_BITMAP_ADDR(int_line);
+    if (!((*ibitmap) & (1 << (int)((int)cmdAddr - (int)DEV_REG_ADDR(int_line, 0)) / 16)))
+    {
+        // The device is not installed
+        cmdValues[STATUS] = 0;
+        currentProc()->p_s.reg_v0 = -1;
+        return;
+    }
 
     // If we have a terminal, we need to check if we are reading or writing
     // Because we need to change the "base" address based on that.
