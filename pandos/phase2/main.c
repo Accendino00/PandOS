@@ -22,7 +22,7 @@ extern void test();
  * 
  * @param pc The entry point of the kernel.
  */
-void initKernel(memaddr pc)
+static inline void initKernel(memaddr pc)
 {
     /* Initialize phase1 data structures */
     initPcbs();

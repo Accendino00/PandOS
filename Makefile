@@ -51,7 +51,7 @@ remake: clean all run
 	@echo "Restarting build..."
 
 run:
-	umps3 $(KERNEL_BUILD)/Test
+	umps3 $(KERNEL_BUILD)/Phase2
 
 kernel : $(ALL_OBJ_FILES) crtso.o libumps.o 
 	$(LD) -o $@ $^ $(LDFLAGS)

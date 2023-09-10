@@ -123,7 +123,7 @@ void interruptHandler(state_t *excState)
 
     if (INT_LINE(2)) // Interval Timer (Bus)
     {
-        LDIT(100000); // ACK
+        resetIntervalTimer();
         while (headBlocked(getPseudoClockSem()) != NULL)
         {
             pcb_t *proc = removeBlocked(getPseudoClockSem());
