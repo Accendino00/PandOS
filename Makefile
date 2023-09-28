@@ -45,34 +45,38 @@ debug: all
 	
 
 all : kernel.core.umps
-	mv kernel.core.umps kernel.stab.umps kernel $(KERNEL_BUILD)
+	@echo "Copying files to $(KERNEL_BUILD)"
+	@mv kernel.core.umps kernel.stab.umps kernel $(KERNEL_BUILD)
 
 remake: clean all run
 	@echo "Restarting build..."
 
 run:
-	umps3 $(KERNEL_BUILD)/Phase2
+	@umps3 $(KERNEL_BUILD)/Phase2
 
 kernel : $(ALL_OBJ_FILES) crtso.o libumps.o 
-	$(LD) -o $@ $^ $(LDFLAGS)
+	@echo "Linking $@"
+	@$(LD) -o $@ $^ $(LDFLAGS)
 
 kernel.core.umps : kernel
-	umps3-elf2umps -k $<
+	@echo "Creating $@"
+	@umps3-elf2umps -k $<
 
 clean :
-	-rm -rf *.o $(BUILD_DIR) kernel kernel.*.umps
+	@rm -rf *.o $(BUILD_DIR) kernel kernel.*.umps
 		
 crtso.o : crtso.S
-	$(CC) $(CFLAGS) -c -o $@ $<
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
 libumps.o : libumps.S
-	$(CC) $(CFLAGS) -c -o $@ $<
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
 $(ALL_OBJ_FILES):  $(BUILD_DIR)/%.o : $(SRC_DIR)/%.c | $(OBJ_FOLDERS) 
-	$(CC) $(CFLAGS) -c -o $@ $<
+	@echo "Compiling $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ_FOLDERS):
-	mkdir -p $@
+	@mkdir -p $@
 
 docs: 
 	doxygen docfile

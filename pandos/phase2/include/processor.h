@@ -14,7 +14,6 @@
     the timer and actually getting back to the process. 
 */
 #define EXTRATIME 100
-#define TIMESLICE (5000 + EXTRATIME)
 #define ITINTERVAL (100000 + EXTRATIME)
 
 static inline void resetPLT() {

@@ -10,12 +10,12 @@
 #include "util.h"
 #include "ash.h"
 
-HIDDEN volatile unsigned int process_count = 0;
-HIDDEN volatile unsigned int soft_block_count = 0;
-HIDDEN volatile pcb_t *current_active_process = NULL;
-HIDDEN volatile struct list_head ready_queue;
-HIDDEN volatile unsigned int pid_counter = 0;
-HIDDEN volatile cpu_t start_time = 0;
+HIDDEN   unsigned int process_count = 0;
+HIDDEN   unsigned int soft_block_count = 0;
+HIDDEN   pcb_t *current_active_process = NULL;
+HIDDEN   struct list_head ready_queue;
+HIDDEN   unsigned int pid_counter = 0;
+HIDDEN   cpu_t start_time = 0;
 
 struct list_head* getReadyQueue() {
     return &ready_queue;

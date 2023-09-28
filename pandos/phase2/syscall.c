@@ -351,7 +351,7 @@ void syscallHandler(state_t *excState)
             schedule();
             break;
         case GETSUPPORTPTR: // SYS 8
-            RETURN_SYS_VALUE(currentProc()->p_supportStruct, support_t *);
+            RETURN_SYS_VALUE(currentProc()->p_supportStruct, unsigned int);
             break;
         case GETPROCESSID: // SYS 9
         {

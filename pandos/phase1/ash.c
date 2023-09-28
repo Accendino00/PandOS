@@ -6,9 +6,9 @@
 #include "devices.h"
 
 /** Declaration of the lists */
-HIDDEN volatile struct list_head semdFree_h;
-HIDDEN volatile struct semd_t semdFree_table[MAXPROC];
-HIDDEN volatile DEFINE_HASHTABLE(semd_h, 12);
+HIDDEN   struct list_head semdFree_h;
+HIDDEN   struct semd_t semdFree_table[MAXPROC];
+HIDDEN   DEFINE_HASHTABLE(semd_h, 12);
 
 int insertBlocked(int *semAdd, pcb_t *p)
 {

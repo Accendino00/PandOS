@@ -2,8 +2,8 @@
 #include "util.h"
 
 /** Declaration of the lists */
-HIDDEN volatile struct list_head pcbFree_h;
-HIDDEN volatile struct pcb_t pcbFree_table[MAXPROC];
+HIDDEN   struct list_head pcbFree_h;
+HIDDEN   struct pcb_t pcbFree_table[MAXPROC];
 
 pcb_t* get_pcb_table() {
     return pcbFree_table;

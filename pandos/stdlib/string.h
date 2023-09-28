@@ -3,9 +3,9 @@
 
 char *itoa(int value, char *buffer, int base);
 
-unsigned int strlen(char *str);
+unsigned int strlen(const char *str);
 
 //strcpy
-char *strcpy(char *dest, char *src);
+char *strcpy(char *dest,const char *src);
 
 #endif
